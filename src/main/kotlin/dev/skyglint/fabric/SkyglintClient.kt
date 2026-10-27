@@ -275,10 +275,10 @@ object SkyglintClient : ClientModInitializer {
                         "detailedDungeonHud" to preferences.detailedDungeonHud,
                         "hudScale" to preferences.hudScale, "skillTimeoutSeconds" to preferences.skillTimeoutSeconds,
                         "minecraft" to "26.2", "flushSucceeded" to flushed, "droppedRecords" to diagnostics.droppedRecords))
-                Minecraft.getInstance().execute { feedback("Report ready: $output") }
+                Minecraft.getInstance().execute { feedback("Report ready: $output", SkyglintChat.Tone.SUCCESS) }
             } catch (failure: Exception) {
                 logger.warn("Could not export diagnostic archive", failure)
-                Minecraft.getInstance().execute { feedback("Could not create report: ${failure.javaClass.simpleName}") }
+                Minecraft.getInstance().execute { feedback("Could not create report: ${failure.javaClass.simpleName}", SkyglintChat.Tone.ERROR) }
             } finally { exporting.set(false) }
         }, "skyglint-report-export").apply { isDaemon = true; start() }
     }
@@ -700,8 +700,8 @@ object SkyglintClient : ClientModInitializer {
         })
     private fun previewFraction(start: Double): Double = if (previewScenario != "skill") start else
         start + ((now() - previewStartedAt).coerceAtLeast(0) % 7_000 / 700).toInt().coerceAtMost(2) * .01
-    private fun feedback(message: String) { Minecraft.getInstance().player?.sendSystemMessage(Component.literal("[Skyglint] $message")) }
+    private fun feedback(message: String, tone: SkyglintChat.Tone = SkyglintChat.Tone.INFO) = SkyglintChat.send(message, tone)
     private fun command(action: () -> Unit): Int = try { action(); 1 } catch (e: Exception) {
-        logger.warn("Skyglint command failed", e); feedback("Could not save: ${e.message}"); 0
+        logger.warn("Skyglint command failed", e); feedback("Could not save: ${e.message}", SkyglintChat.Tone.ERROR); 0
     }
 }

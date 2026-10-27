@@ -7,6 +7,7 @@ import dev.skyglint.ui.SkyglintHud;
 import dev.skyglint.ui.SkyglintSettingsScreen;
 import dev.skyglint.ui.SkyglintUpdatesScreen;
 import dev.skyglint.fabric.GitHubUpdates;
+import dev.skyglint.fabric.SkyglintChat;
 import dev.skyglint.mixin.PlayerTabOverlayAccessor;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -73,10 +74,10 @@ public final class SmokeClient implements ClientModInitializer {
                 else if (captures == scenarios.length) client.gui.setScreen(new SkyglintSettingsScreen(null));
                 else if (captures == scenarios.length + 1) client.gui.setScreen(new SkyglintUpdatesScreen(null,
                     new GitHubUpdates.View("0.2.0", GitHubUpdates.Phase.AVAILABLE, "0.2.1",
-                        "Новая версия для Minecraft 26.2. Скачивание — по кнопке ниже.", true)));
+                        "A new version for Minecraft 26.2 is available. Choose Download below.", true)));
                 else if (captures == scenarios.length + 2) client.gui.setScreen(new SkyglintUpdatesScreen(null,
                     new GitHubUpdates.View("0.2.0", GitHubUpdates.Phase.READY, "0.2.1",
-                        "JAR проверен и установлен. Перезапустите Minecraft для загрузки новой версии.", true)));
+                        "Update verified and installed. Restart Minecraft to load the new version.", true)));
             }
             if (ticks >= (scenarios.length + 3) * 60 + 40) {
                 try (var files = java.nio.file.Files.list(client.gameDirectory.toPath().resolve("config/skyglint/reports"))) {
@@ -183,7 +184,36 @@ public final class SmokeClient implements ClientModInitializer {
         client.stop();
     }
 
+    private static void verifyChatFormatting() {
+        var update = SkyglintChat.INSTANCE.updateAvailable("0.2.3");
+        if (!update.getString().equals("[Skyglint] Update available 0.2.3  [View update]"))
+            throw new AssertionError("Update announcement is not concise English");
+        if (update.getStyle().getClickEvent() != null)
+            throw new AssertionError("The chat prefix/body inherited the update action");
+        int actions = 0;
+        for (var part : update.getSiblings()) {
+            if (part.getStyle().getColor() == null || part.getStyle().getColor().getValue() == 0xFFFFFF)
+                throw new AssertionError("Chat component lost its explicit restrained color");
+            var click = part.getStyle().getClickEvent();
+            if (click != null) {
+                actions++;
+                if (!part.getString().equals("[View update]") ||
+                    !(click instanceof net.minecraft.network.chat.ClickEvent.RunCommand run) ||
+                    !run.command().equals("/skyglint update") || part.getStyle().getHoverEvent() == null)
+                    throw new AssertionError("Only the update action may run its fixed reviewed command");
+            }
+        }
+        if (actions != 1) throw new AssertionError("Update message must have exactly one action");
+        var success = SkyglintChat.INSTANCE.message("Saved.", SkyglintChat.Tone.SUCCESS);
+        var error = SkyglintChat.INSTANCE.message("Could not save.", SkyglintChat.Tone.ERROR);
+        var successBody = success.getSiblings().getLast().getStyle();
+        var errorBody = error.getSiblings().getLast().getStyle();
+        if (successBody.getColor().equals(errorBody.getColor()) || successBody.getClickEvent() != null || errorBody.getClickEvent() != null)
+            throw new AssertionError("Semantic chat tones or action isolation were lost");
+    }
+
     private static void verifyRuntime(Minecraft client) {
+        verifyChatFormatting();
         try {
             if (PlayerTabOverlayAccessor.skyglintComparator() == null) throw new AssertionError("Vanilla tab comparator accessor missing");
             var tab = (PlayerTabOverlayAccessor) client.gui.hud.getTabList();
@@ -242,6 +272,8 @@ public final class SmokeClient implements ClientModInitializer {
         @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
             graphics.fill(0, 0, width, height, 0xFF303B35);
             graphics.centeredText(font, "Offline render verification · synthetic inputs", width / 2, height - 30, 0xFFD7E2DB);
+            graphics.text(font, SkyglintChat.INSTANCE.updateAvailable("0.2.3"), 18, height - 76, -1, false);
+            graphics.text(font, SkyglintChat.INSTANCE.message("Preferences saved.", SkyglintChat.Tone.SUCCESS), 18, height - 62, -1, false);
             SkyglintHud.INSTANCE.render(graphics);
         }
     }

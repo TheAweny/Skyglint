@@ -13,7 +13,7 @@ import java.util.Locale
 
 /** Persistent native settings: each control is keyboard/narration accessible and commits immediately. */
 class SkyglintSettingsScreen(private val parent: Screen?) : Screen(Component.literal("Skyglint")) {
-    private var status = "Настройки сохраняются автоматически"
+    private var status = "Settings save automatically"
     private var error = false
     private val buttons = mutableListOf<SettingsButton>()
     private var panelX = 0
@@ -21,11 +21,11 @@ class SkyglintSettingsScreen(private val parent: Screen?) : Screen(Component.lit
     private var panelWidth = 0
     private var panelHeight = 0
     private var sceneIndex = -1
-    private val scenes = listOf("objective" to "Цель", "skill" to "Навык", "skyblock" to "SB XP",
-        "levelup" to "Повышение", "rare" to "Редкий дроп", "unknown" to "Без данных", "sequence" to "События по очереди",
-        "idle" to "Локация", "event" to "Расписание", "petlevelup" to "Уровень питомца", "skilllevelup" to "Уровень навыка",
-        "garden" to "Garden", "dungeon" to "Catacombs", "election" to "Выборы", "ranks" to "Ранги", "mining" to "Майнинг", "nucleus" to "Nucleus run",
-        "confirmations" to "Подтверждения", "slayerpets" to "Slayer / питомцы", "fishing" to "Рыбалка")
+    private val scenes = listOf("objective" to "Objective", "skill" to "Skill", "skyblock" to "SB XP",
+        "levelup" to "Level up", "rare" to "Rare drop", "unknown" to "Unknown", "sequence" to "Sequence",
+        "idle" to "Location", "event" to "Schedule", "petlevelup" to "Pet level up", "skilllevelup" to "Skill level up",
+        "garden" to "Garden", "dungeon" to "Catacombs", "election" to "Election", "ranks" to "Ranks", "mining" to "Mining", "nucleus" to "Nucleus run",
+        "confirmations" to "Confirmations", "slayerpets" to "Slayer / pets", "fishing" to "Fishing")
 
     override fun init() {
         buttons.clear()
@@ -46,14 +46,14 @@ class SkyglintSettingsScreen(private val parent: Screen?) : Screen(Component.lit
         var index = 0
 
         fun control(caption: String, value: () -> String = { "" }, state: (() -> Boolean)? = null,
-                    hint: String, persisted: Boolean = true, transientStatus: String = "Демонстрация не меняет игровые данные", action: () -> Unit) {
+                    hint: String, persisted: Boolean = true, transientStatus: String = "Preview uses isolated sample data", action: () -> Unit) {
             val x = panelX + margin + index % columns * (controlWidth + gap)
             val y = panelY + headerHeight + index / columns * (rowHeight + gap)
             index++
             val button = SettingsButton(x, y, controlWidth, rowHeight, caption, value, state, hint) {
-                try { action(); status = if (persisted) "Сохранено" else transientStatus; error = false }
+                try { action(); status = if (persisted) "Saved" else transientStatus; error = false }
                 catch (failure: Exception) {
-                    status = "Не удалось сохранить: ${failure.message ?: failure.javaClass.simpleName}"
+                    status = "Could not save: ${failure.message ?: failure.javaClass.simpleName}"
                     error = true
                 }
                 buttons.forEach(SettingsButton::refreshMessage)
@@ -61,75 +61,76 @@ class SkyglintSettingsScreen(private val parent: Screen?) : Screen(Component.lit
             buttons += button
             addRenderableWidget(button)
         }
-        control("Интерфейс", { onOff(SkyglintClient.config.current.enabled) }, { SkyglintClient.config.current.enabled },
-            "Замена bossbar включается только в подтверждённой сессии SkyBlock.") {
+        control("HUD", { onOff(SkyglintClient.config.current.enabled) }, { SkyglintClient.config.current.enabled },
+            "Replace bossbars only in a confirmed SkyBlock session.") {
             SkyglintClient.setEnabled(!SkyglintClient.config.current.enabled)
         }
-        control("Логирование", { onOff(SkyglintClient.config.current.loggingEnabled) }, { SkyglintClient.config.current.loggingEnabled },
-            "Диагностика событий и решений HUD. Выбор сохраняется после перезапуска игры.") {
+        control("Logging", { onOff(SkyglintClient.config.current.loggingEnabled) }, { SkyglintClient.config.current.loggingEnabled },
+            "Record event and HUD diagnostics. This setting persists after restarting Minecraft.") {
             SkyglintClient.setLogging(!SkyglintClient.config.current.loggingEnabled)
         }
-        control("Исходный текст", { onOff(SkyglintClient.config.current.captureRawText) }, { SkyglintClient.config.current.captureRawText },
-            "Сохранять исходные серверные строки HUD. Работает при включённом логировании; полезно для новых обработчиков.") {
+        control("Raw HUD text", { onOff(SkyglintClient.config.current.captureRawText) }, { SkyglintClient.config.current.captureRawText },
+            "Record original server HUD text while logging is enabled. Useful for investigating unrecognized formats.") {
             SkyglintClient.setRawLogging(!SkyglintClient.config.current.captureRawText)
         }
-        control("Питомец", { onOff(SkyglintClient.config.current.showPets) }, { SkyglintClient.config.current.showPets },
-            "Показывать активного питомца. Настоящая иконка наблюдается в меню Pets; прогресс не выдумывается.") {
+        control("Pet", { onOff(SkyglintClient.config.current.showPets) }, { SkyglintClient.config.current.showPets },
+            "Show the active pet. Its item icon can be observed in the Pets menu; progress uses confirmed data.") {
             SkyglintClient.changeConfig { it.copy(showPets = !it.showPets) }
         }
-        control("Масштаб", { String.format(Locale.ROOT, "%.2f×", SkyglintClient.config.current.hudScale) }, hint =
-            "1× — согласованный размер прототипа: высота 45 экранных пикселей. Масштаб Minecraft GUI не увеличивает HUD повторно.") {
+        control("Scale", { String.format(Locale.ROOT, "%.2f×", SkyglintClient.config.current.hudScale) }, hint =
+            "1× is the default HUD size: 45 screen pixels tall. Minecraft GUI scale does not multiply it again.") {
             val choices = listOf(.5, .75, 1.0, 1.25, 1.5, 1.75, 2.0)
             SkyglintClient.changeConfig { it.copy(hudScale = choices.firstOrNull { scale -> scale > it.hudScale + .001 } ?: choices.first()) }
         }
-        control("База удержания", { "${SkyglintClient.config.current.skillTimeoutSeconds} сек." }, hint =
-            "Минимум после положительного XP. Fishing — от 45 секунд; редкий темп XP адаптивно продлевает удержание до 120 секунд. Снимки tab и локация не включают навык.") {
+        control("Skill hold", { "${SkyglintClient.config.current.skillTimeoutSeconds}s" }, hint =
+            "Minimum hold after an XP gain. Fishing stays for at least 45 seconds; slower gains extend the hold up to 120 seconds. Tab snapshots and location do not activate a skill.") {
             val choices = listOf(10, 15, 30, 60, 120)
             SkyglintClient.changeConfig { it.copy(skillTimeoutSeconds = choices.firstOrNull { seconds -> seconds > it.skillTimeoutSeconds } ?: choices.first()) }
         }
-        control("Демонстрация", { onOff(SkyglintClient.preview) }, { SkyglintClient.preview },
-            "Показать изолированные примерные данные с отметкой PREVIEW. Настройка не сохраняется.", persisted = false) {
+        control("Preview", { onOff(SkyglintClient.preview) }, { SkyglintClient.preview },
+            "Show isolated sample data marked PREVIEW. This setting is not saved.", persisted = false) {
             SkyglintClient.setPreview(!SkyglintClient.preview)
         }
-        control("Сценарий", { scenes.getOrNull(sceneIndex)?.second ?: "Выбрать" }, hint =
-            "Цель → навык → SkyBlock XP → повышение уровня → редкий предмет → неизвестный прогресс. Выбор включает демонстрацию.", persisted = false) {
+        control("Scene", { scenes.getOrNull(sceneIndex)?.second ?: "Choose" }, hint =
+            "Cycle through sample HUD scenes. Choosing a scene enables preview mode.", persisted = false) {
             sceneIndex = (sceneIndex + 1) % scenes.size
             SkyglintClient.setPreviewScenario(scenes[sceneIndex].first)
         }
-        control("Сброс размера", { "100%" }, hint =
-            "Вернуть согласованный размер 1×. Остальные настройки, включая логирование, сохраняются.") {
+        control("Reset scale", { "100%" }, hint =
+            "Restore the default 1× size. Other settings, including logging, are preserved.") {
             SkyglintClient.changeConfig { it.copy(hudScale = 1.0) }
         }
-        control("Отступ сверху", { SkyglintClient.config.current.topOffset.toString() }, hint =
-            "Расстояние от верхнего края в единицах игрового GUI. Переключение: 8, 12, 18, 24, 32, 48, 64.") {
+        control("Top offset", { SkyglintClient.config.current.topOffset.toString() }, hint =
+            "Distance from the top edge in Minecraft GUI units. Cycles through 8, 12, 18, 24, 32, 48 and 64.") {
             val choices = listOf(8, 12, 18, 24, 32, 48, 64)
             SkyglintClient.changeConfig { it.copy(topOffset = choices.firstOrNull { offset -> offset > it.topOffset } ?: choices.first()) }
         }
-        control("Частый дроп", { if (SkyglintClient.config.current.rewardMode == "filtered") "Скрыт" else "Показан" },
-            hint = "Скрывает жемчуг, обычные Eye of Ender, плоть и частые награды. Summoning Eye остаётся. Правило предмета: /skyglint drops hide|show|reset <название>.") {
+        control("Common drops", { if (SkyglintClient.config.current.rewardMode == "filtered") "Hidden" else "Shown" },
+            hint = "Filter common rewards such as pearls, ordinary Eyes of Ender and rotten flesh. Summoning Eyes remain visible. Item rule: /skyglint drops hide|show|reset <item>.") {
             SkyglintClient.changeConfig { it.copy(rewardMode = if (it.rewardMode == "filtered") "all" else "filtered") }
         }
-        control("Полный чат", { onOff(SkyglintClient.config.current.captureChat) }, { SkyglintClient.config.current.captureChat },
-            hint = "Записывать все полученные сообщения, включая личные и скрытые другими модами. Независимо от исходного HUD текста; включение также включает логирование.") {
+        control("Full chat", { onOff(SkyglintClient.config.current.captureChat) }, { SkyglintClient.config.current.captureChat },
+            hint = "Record all received chat, including private messages and messages hidden by other mods. Independent of raw HUD text; enabling this also enables logging.") {
             SkyglintClient.setChatLogging(!SkyglintClient.config.current.captureChat)
         }
-        control("Вся диагностика", { if (SkyglintClient.config.current.let { it.loggingEnabled && it.captureRawText && it.captureChat }) "Вкл." else "Включить" },
-            hint = "Включить и сохранить события, исходные HUD/menu snapshots и весь полученный чат, включая личный.") {
+        control("Diagnostics", { if (SkyglintClient.config.current.let { it.loggingEnabled && it.captureRawText && it.captureChat }) "On" else "Enable" },
+            hint = "Enable and save event logging, raw HUD/menu snapshots and all received chat, including private messages.") {
             SkyglintClient.setDiagnostics(true)
         }
-        control("Архив логов", { "ZIP" }, hint = "Собрать локальный отчёт; он может содержать личный чат. Ничего не отправляется автоматически.", persisted = false) {
+        control("Export logs", { "ZIP" }, hint = "Create a local report. It may contain private chat; nothing is uploaded automatically.", persisted = false,
+            transientStatus = "Preparing local report") {
             SkyglintClient.exportDiagnostics()
         }
-        control("Dungeon HUD", { if (SkyglintClient.config.current.detailedDungeonHud) "Подробно" else "Компактно" },
-            hint = "По умолчанию — стадия, score/rank и secrets, без питомца. Подробно: дополнительные счётчики, puzzles и оценка score при полной базе данных.") {
+        control("Dungeon HUD", { if (SkyglintClient.config.current.detailedDungeonHud) "Detailed" else "Compact" },
+            hint = "Compact shows the phase, score/rank and secrets, with no pet. Detailed adds counters, puzzles and a score estimate when all required data is known.") {
             SkyglintClient.changeConfig { it.copy(detailedDungeonHud = !it.detailedDungeonHud) }
         }
-        control("Обновления", { "GitHub" }, hint = "Проверка новой версии, явное скачивание и настройка проверки при входе. Новая версия загружается после перезапуска.", persisted = false,
-            transientStatus = "Окно обновлений открыто") {
+        control("Updates", { "GitHub" }, hint = "Check for updates, download on request and set login checks. New versions load after restarting Minecraft.", persisted = false,
+            transientStatus = "Update screen opened") {
             GitHubUpdates.open()
         }
         addRenderableWidget(SettingsButton(panelX + margin, panelY + headerHeight + rows * (rowHeight + gap),
-            panelWidth - margin * 2, rowHeight, "Готово", { "Esc" }, hint = "Вернуться в игру. Изменения уже сохранены.") { onClose() })
+            panelWidth - margin * 2, rowHeight, "Done", { "Esc" }, hint = "Return to the game. Changes are already saved.") { onClose() })
     }
 
     override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
@@ -150,5 +151,5 @@ class SkyglintSettingsScreen(private val parent: Screen?) : Screen(Component.lit
 
     override fun onClose() { minecraft.gui.setScreen(parent) }
     override fun isPauseScreen(): Boolean = false
-    private fun onOff(value: Boolean) = if (value) "включено" else "выключено"
+    private fun onOff(value: Boolean) = if (value) "On" else "Off"
 }

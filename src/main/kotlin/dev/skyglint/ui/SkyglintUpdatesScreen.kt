@@ -14,7 +14,7 @@ import net.minecraft.util.Util
 class SkyglintUpdatesScreen(
     private val parent: Screen?,
     private val previewState: GitHubUpdates.View? = null,
-) : Screen(Component.literal("Обновления Skyglint")) {
+) : Screen(Component.literal("Skyglint updates")) {
     private var panelX = 0
     private var panelY = 0
     private var panelWidth = 0
@@ -39,24 +39,24 @@ class SkyglintUpdatesScreen(
         val controlWidth = (panelWidth - margin * 2 - gap) / 2
         val controlY = panelY + panelHeight - margin - 3 * rowHeight - 2 * gap
         checkButton = addRenderableWidget(SettingsButton(panelX + margin, controlY, controlWidth, rowHeight,
-            "Проверить", hint = "Проверить последний публичный релиз. Повторная проверка — раз в 10 минут; JAR не скачивается.") {
+            "Check", hint = "Check the latest public release. Available once every 10 minutes; this does not download a JAR.") {
             GitHubUpdates.check()
         })
         downloadButton = addRenderableWidget(SettingsButton(panelX + margin + controlWidth + gap, controlY, controlWidth, rowHeight,
-            if (readyCaption) "Перезапустите игру" else "Скачать", hint = "Скачать и проверить JAR для следующего запуска Minecraft. Игра продолжит работать.") {
+            if (readyCaption) "Restart required" else "Download", hint = "Download and verify the JAR for the next Minecraft launch. Your current game keeps running.") {
             GitHubUpdates.download()
         })
         toggleButton = addRenderableWidget(SettingsButton(panelX + margin, controlY + rowHeight + gap,
-            panelWidth - margin * 2, rowHeight, "Проверять при входе", toggled = { view.automaticChecks },
-            hint = "Одна проверка при первом входе в SkyBlock за запуск игры. Выбор сохраняется; автоматического скачивания нет.") {
+            panelWidth - margin * 2, rowHeight, "Check on login", toggled = { view.automaticChecks },
+            hint = "Check once on the first SkyBlock entry of each game launch. This preference is saved; updates are not downloaded automatically.") {
             GitHubUpdates.setAutomaticChecks(!view.automaticChecks)
         })
         releaseButton = addRenderableWidget(SettingsButton(panelX + margin, controlY + 2 * (rowHeight + gap), controlWidth, rowHeight,
-            "Релизы GitHub", hint = "Открыть github.com/TheAweny/Skyglint/releases в обычном браузере.") {
+            "GitHub releases", hint = "Open github.com/TheAweny/Skyglint/releases in your browser.") {
             Util.getPlatform().openUri(GitHubUpdates.releasesUri)
         })
         addRenderableWidget(SettingsButton(panelX + margin + controlWidth + gap, controlY + 2 * (rowHeight + gap), controlWidth, rowHeight,
-            "Назад", { "Esc" }, hint = "Закрыть окно. Начатая загрузка безопасно продолжится в фоне.") { onClose() })
+            "Back", { "Esc" }, hint = "Close this screen. An active download continues safely in the background.") { onClose() })
         refreshControls()
     }
 
@@ -83,22 +83,22 @@ class SkyglintUpdatesScreen(
         val compact = height < 310
         val line = if (compact) 14 else 17
         val left = panelX + 14
-        HudText.draw(graphics, "Обновления Skyglint${if (previewState != null) " · PREVIEW" else ""}", left, panelY + 12, SettingsPaint.INK)
-        HudText.draw(graphics, HudText.fit("Установлено: ${current.currentVersion} · Minecraft 26.2", panelWidth - 28),
+        HudText.draw(graphics, "Skyglint updates${if (previewState != null) " · PREVIEW" else ""}", left, panelY + 12, SettingsPaint.INK)
+        HudText.draw(graphics, HudText.fit("Installed: ${current.currentVersion} · Minecraft 26.2", panelWidth - 28),
             left, panelY + 34, SettingsPaint.MUTED)
         val heading = when (current.phase) {
-            GitHubUpdates.Phase.IDLE -> "Проверка по кнопке или при входе в SkyBlock"
-            GitHubUpdates.Phase.CHECKING -> "Проверка обновления…"
-            GitHubUpdates.Phase.AVAILABLE -> "Доступна версия ${current.availableVersion ?: "—"}"
-            GitHubUpdates.Phase.DOWNLOADING -> "Загрузка версии ${current.availableVersion ?: "—"}…"
-            GitHubUpdates.Phase.READY -> "Перезапустите Minecraft · ${current.availableVersion ?: "—"}"
-            GitHubUpdates.Phase.UP_TO_DATE -> "Установлена актуальная версия"
-            GitHubUpdates.Phase.UNAVAILABLE -> "Установка вручную через GitHub"
-            GitHubUpdates.Phase.FAILED -> "Не удалось завершить обновление"
+            GitHubUpdates.Phase.IDLE -> "Check here or when you join SkyBlock"
+            GitHubUpdates.Phase.CHECKING -> "Checking for updates…"
+            GitHubUpdates.Phase.AVAILABLE -> "Version ${current.availableVersion ?: "—"} available"
+            GitHubUpdates.Phase.DOWNLOADING -> "Downloading ${current.availableVersion ?: "—"}…"
+            GitHubUpdates.Phase.READY -> "Restart Minecraft · ${current.availableVersion ?: "—"}"
+            GitHubUpdates.Phase.UP_TO_DATE -> "You are up to date"
+            GitHubUpdates.Phase.UNAVAILABLE -> "Install manually from GitHub"
+            GitHubUpdates.Phase.FAILED -> "Update could not be completed"
         }
         HudText.draw(graphics, HudText.fit(heading, panelWidth - 28), left, panelY + 53,
             if (current.phase == GitHubUpdates.Phase.FAILED) 0xFFFFB1AA.toInt() else SettingsPaint.ACCENT)
-        val message = current.message.ifBlank { "Скачивание начинается только по вашему нажатию. Новая версия загрузится после перезапуска игры." }
+        val message = current.message.ifBlank { "Download an update when you choose. The new version loads after a full Minecraft restart." }
         wrapped(message, panelWidth - 28).take(if (compact) 3 else 4).forEachIndexed { index, text ->
             HudText.draw(graphics, text, left, panelY + 75 + index * line, SettingsPaint.MUTED)
         }

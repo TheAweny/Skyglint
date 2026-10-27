@@ -5,9 +5,6 @@ import dev.skyglint.updates.github.*
 import net.fabricmc.loader.api.FabricLoader
 import net.fabricmc.loader.api.metadata.ModOrigin
 import net.minecraft.client.Minecraft
-import net.minecraft.network.chat.ClickEvent
-import net.minecraft.network.chat.Component
-import net.minecraft.network.chat.Style
 import java.net.URI
 import java.nio.file.Path
 import java.util.concurrent.ArrayBlockingQueue
@@ -54,7 +51,7 @@ object GitHubUpdates : AutoCloseable {
                 loader.getModContainer("fabricloader").orElse(null)?.metadata?.version?.friendlyString ?: "0.0.0",
                 production = !loader.isDevelopmentEnvironment && path != null && loader.rawGameVersion == "26.2"))
         } catch (_: Exception) {
-            state = state.copy(phase = Phase.UNAVAILABLE, message = "Автообновление недоступно. Используйте релизы GitHub.")
+            state = state.copy(phase = Phase.UNAVAILABLE, message = "In-game updates are unavailable. Open GitHub Releases to update manually.")
         }
     }
 
@@ -70,9 +67,7 @@ object GitHubUpdates : AutoCloseable {
         val release = offer ?: return
         if (announcedVersion == release.version) return
         val player = Minecraft.getInstance().player ?: return
-        player.sendSystemMessage(Component.literal("[Skyglint] Доступна версия ${release.version}. ")
-            .append(Component.literal("[Обновление]").setStyle(Style.EMPTY.withColor(0xB5DDF4)
-                .withUnderlined(true).withClickEvent(ClickEvent.RunCommand("/skyglint update")))))
+        player.sendSystemMessage(SkyglintChat.updateAvailable(release.version))
         announcedVersion = release.version
     }
 
@@ -83,34 +78,34 @@ object GitHubUpdates : AutoCloseable {
 
     fun check(manual: Boolean = true) {
         val updater = service ?: run {
-            if (manual) feedback(state.message.ifBlank { "Автообновление недоступно. Используйте релизы GitHub." })
+            if (manual) feedback(state.message.ifBlank { "In-game updates are unavailable. Open GitHub Releases to update manually." })
             return
         }
         if (inFlight || stopped) return
         if (state.phase == Phase.READY) {
-            if (manual) feedback("Обновление подготовлено. Перезапустите Minecraft.")
+            if (manual) feedback("The update is ready. Restart Minecraft to load it.")
             return
         }
         val now = SkyglintClient.now()
         if (lastCheck != Long.MIN_VALUE && now - lastCheck < CHECK_COOLDOWN) {
             if (manual) {
-                state = state.copy(message = "Повторная проверка доступна через ${((CHECK_COOLDOWN - (now - lastCheck)) / 60_000 + 1).coerceAtMost(10)} мин. Последний результат сохранён; релизы доступны на GitHub.")
+                state = state.copy(message = "Check again in ${((CHECK_COOLDOWN - (now - lastCheck)) / 60_000 + 1).coerceAtMost(10)} min. The last result is saved; releases are available on GitHub.")
                 feedback(state.message)
             }
             return
         }
         lastCheck = now
-        state = state.copy(phase = Phase.CHECKING, message = "Проверяем публичный релиз GitHub…")
+        state = state.copy(phase = Phase.CHECKING, message = "Checking the latest GitHub release…")
         submit({ updater.check() }) { result ->
             when (result) {
                 is UpdateCheck.Available -> {
                     offer = result.release
                     state = state.copy(phase = Phase.AVAILABLE, availableVersion = result.release.version,
-                        message = "Новая версия для Minecraft 26.2. Скачивание — по кнопке ниже.")
+                        message = "A new version for Minecraft 26.2 is available. Choose Download below.")
                 }
                 UpdateCheck.UpToDate -> {
                     offer = null
-                    state = state.copy(phase = Phase.UP_TO_DATE, availableVersion = null, message = "Установлена актуальная версия.")
+                    state = state.copy(phase = Phase.UP_TO_DATE, availableVersion = null, message = "You are up to date.")
                 }
                 is UpdateCheck.Unavailable -> {
                     offer = null
@@ -130,16 +125,16 @@ object GitHubUpdates : AutoCloseable {
         val updater = service ?: return
         val release = offer
         if (release == null) {
-            feedback("Сначала проверьте обновления: /skyglint update check")
+            feedback("Check for updates first: /skyglint update check")
             return
         }
-        state = state.copy(phase = Phase.DOWNLOADING, message = "Скачиваем и проверяем JAR. Можно закрыть это окно.")
+        state = state.copy(phase = Phase.DOWNLOADING, message = "Downloading and verifying the JAR. You can close this screen.")
         submit({ updater.download(release) }) { result ->
             when (result) {
                 is UpdateDownload.Ready -> state = state.copy(phase = Phase.READY, availableVersion = result.version,
-                    message = "JAR проверен и установлен. Перезапустите Minecraft для загрузки новой версии.")
+                    message = "Update verified and installed. Restart Minecraft to load the new version.")
                 is UpdateDownload.AlreadyInstalled -> state = state.copy(phase = Phase.READY, availableVersion = result.version,
-                    message = "Эта или более новая версия уже находится в mods. Перезапустите Minecraft.")
+                    message = "This version or a newer one is already in mods. Restart Minecraft to load it.")
                 is UpdateDownload.Failed -> state = state.copy(phase = Phase.FAILED, message = friendly(result.reason))
             }
             feedback(state.message)
@@ -149,7 +144,7 @@ object GitHubUpdates : AutoCloseable {
     fun setAutomaticChecks(enabled: Boolean) {
         if (inFlight || stopped) return
         submit({ SkyglintClient.config.update { it.copy(checkUpdates = enabled) }; enabled }) {
-            state = state.copy(message = if (it) "Проверка при входе в SkyBlock включена." else "Проверка при входе в SkyBlock выключена.")
+            state = state.copy(message = if (it) "Update checks on SkyBlock entry are enabled." else "Update checks on SkyBlock entry are disabled.")
         }
     }
 
@@ -166,35 +161,40 @@ object GitHubUpdates : AutoCloseable {
                     Minecraft.getInstance().execute {
                         if (!stopped) {
                             inFlight = false
-                            state = state.copy(phase = Phase.FAILED, message = "Не удалось завершить операцию. Релизы доступны на GitHub.")
+                            state = state.copy(phase = Phase.FAILED, message = "The operation could not finish. Releases are available on GitHub.")
                         }
                     }
                 }
             }
         } catch (_: Exception) {
             inFlight = false
-            state = state.copy(phase = Phase.FAILED, message = "Проверка недоступна. Релизы доступны на GitHub.")
+            state = state.copy(phase = Phase.FAILED, message = "Update checking is unavailable. Releases are available on GitHub.")
         }
     }
 
     val busy: Boolean get() = inFlight
     val canDownload: Boolean get() = offer != null && !inFlight && state.phase != Phase.READY
-    private fun feedback(message: String) { Minecraft.getInstance().player?.sendSystemMessage(Component.literal("[Skyglint] $message")) }
+    private fun feedback(message: String) = SkyglintChat.send(message, when (state.phase) {
+        Phase.FAILED -> SkyglintChat.Tone.ERROR
+        Phase.UNAVAILABLE -> SkyglintChat.Tone.WARNING
+        Phase.READY, Phase.UP_TO_DATE -> SkyglintChat.Tone.SUCCESS
+        else -> SkyglintChat.Tone.INFO
+    })
     private fun friendly(reason: String): String = when {
-        reason.startsWith("installation_") -> "Автообновление доступно для обычного JAR в mods. Используйте релизы GitHub."
-        reason == "fabric_loader_update_required" -> "Для новой версии сначала обновите Fabric Loader. Релизы доступны на GitHub."
-        reason == "unsupported_java" -> "Нужна Java 25. Релизы доступны на GitHub."
-        reason == "http_403" || reason == "http_429" -> "GitHub временно ограничил запросы. Повторите позже или откройте релизы."
-        reason == "http_404" -> "Публичный релиз пока недоступен. Проверить публикацию можно на GitHub."
-        reason == "destination_already_exists" -> "Файл новой версии уже существует. Он сохранён; проверьте папку mods."
+        reason.startsWith("installation_") -> "In-game updates require a regular JAR in mods. Use GitHub Releases for this installation."
+        reason == "fabric_loader_update_required" -> "Update Fabric Loader before installing this version. Releases are available on GitHub."
+        reason == "unsupported_java" -> "Java 25 is required. Releases are available on GitHub."
+        reason == "http_403" || reason == "http_429" -> "GitHub is temporarily limiting requests. Try later or open Releases."
+        reason == "http_404" -> "No public release is available yet. Check GitHub Releases."
+        reason == "destination_already_exists" -> "The update file already exists and was preserved. Check your mods folder."
         reason == "mods_directory_read_only" || reason == "AccessDeniedException" || reason == "SecurityException" ->
-            "Нет доступа для записи в папку установки. Скачайте JAR со страницы релизов GitHub."
+            "Cannot write to the installation folder. Download the JAR from GitHub Releases."
         reason == "staging_requires_same_filesystem" || reason == "UnsupportedOperationException" || reason == "FileSystemException" ->
-            "Файловая система не поддерживает безопасную установку. Используйте релизы GitHub."
-        reason == "update_cancelled" -> "Операция отменена. Текущая версия сохранена."
+            "This filesystem cannot safely install the update. Use GitHub Releases."
+        reason == "update_cancelled" -> "Update cancelled. Your current version is unchanged."
         reason.startsWith("download_") || reason.startsWith("jar_") || reason.startsWith("invalid_") ||
-            reason.contains("mismatch") || reason.startsWith("untrusted_") -> "Обновление не прошло проверку. Текущая версия сохранена; релизы доступны на GitHub."
-        else -> "Не удалось получить обновление. Повторите позже или откройте релизы GitHub."
+            reason.contains("mismatch") || reason.startsWith("untrusted_") -> "The update failed verification. Your current version is unchanged; use GitHub Releases."
+        else -> "Could not retrieve the update. Try later or open GitHub Releases."
     }
 
     override fun close() {

@@ -258,14 +258,18 @@ object SkyglintHud {
                 }
                 HudElementKind.CAROUSEL -> {
                     val left = (width - carouselWidth(data).toFloat()) / 2f + 14f
-                    HudText.draw(g, data.title, left, HudText.centeredOriginY(data.title, 0f, HEIGHT), alpha(data.accent, opacity))
+                    // Measure the full carousel's ink once as one line: different page descenders
+                    // must not move the right caption relative to its fixed heading and item.
+                    val baseline = HudText.centeredOriginY(
+                        (listOf(data.title) + data.parts.map { it.text }).joinToString(" "), 0f, HEIGHT)
+                    HudText.draw(g, data.title, left, baseline, alpha(data.accent, opacity))
                     val cropLeft = left + HudText.width(data.title) + 14f
                     g.enableScissor(cropLeft.toInt(), 2, (width - 10).toInt().coerceAtLeast(cropLeft.toInt() + 1), 29)
                     try {
                         entry.carouselLayers.forEach { crop ->
                             val part = data.parts.getOrNull(crop.key.toIntOrNull() ?: -1) ?: return@forEach
                             drawInline(g, part, cropLeft + crop.offsetX.toFloat(), 1f,
-                                (normalized * crop.opacity).toFloat(), opacity * crop.opacity)
+                                (normalized * crop.opacity).toFloat(), opacity * crop.opacity, baseline)
                         }
                     } finally { g.disableScissor() }
                 }
@@ -321,16 +325,17 @@ object SkyglintHud {
         element.parts.sumOf { inlineWidth(it, .82) } + stripGap(element) * (element.parts.size - 1).coerceAtLeast(0)
     private fun carouselWidth(element: HudElement): Double = 28.0 + HudText.width(element.title) + 14.0 +
         (element.parts.maxOfOrNull { inlineWidth(it, 1.0) } ?: 0.0)
-    private fun drawInline(g: GuiGraphicsExtractor, part: HudInlinePart, left: Float, textScale: Float, scale: Float, opacity: Double) {
+    private fun drawInline(g: GuiGraphicsExtractor, part: HudInlinePart, left: Float, textScale: Float, scale: Float,
+                           opacity: Double, textOriginY: Float? = null) {
         val sprite = resolveSprite(part.icon)
         if (sprite != null) scaledSprite(g, sprite, left + 8f, 20f, scale, opacity.toFloat())
         else {
             val item = resolveIcon(part.icon, Minecraft.getInstance())
             if (item != null) scaledItem(g, item, left + 8f, 16f, scale)
-            else smallText(g, "?", left + 8f, HudText.centeredOriginY("?", 0f, HEIGHT, textScale), alpha(part.accent, opacity), textScale)
+            else smallText(g, "?", left + 8f, textOriginY ?: HudText.centeredOriginY("?", 0f, HEIGHT, textScale), alpha(part.accent, opacity), textScale)
         }
         if (part.icon == "@sack_disabled") disabledSackMark(g, left + 8f, scale, opacity)
-        if (part.text.isNotEmpty()) text(g, part.text, left + 21f, HudText.centeredOriginY(part.text, 0f, HEIGHT, textScale),
+        if (part.text.isNotEmpty()) text(g, part.text, left + 21f, textOriginY ?: HudText.centeredOriginY(part.text, 0f, HEIGHT, textScale),
             alpha(if (part.colored) part.accent else WHITE, opacity), textScale)
     }
     /** A crossed sack denotes a disabled toggle, independently of any observed bait count. */
