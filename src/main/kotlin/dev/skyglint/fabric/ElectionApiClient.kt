@@ -42,6 +42,9 @@ class ElectionApiClient(
         }
         val completion = completed.getAndSet(null)
         if (completion != null) {
+            // Keep the request reserved until the client consumes its completion. Releasing it
+            // on the worker races a poll that already read null and can schedule a duplicate.
+            inFlight.set(false)
             val result = completion.result
             if (result.payload != null || result.closed) {
                 failures = 0
@@ -71,10 +74,8 @@ class ElectionApiClient(
         val requestedGeneration = generation
         try {
             executor.execute {
-                try {
-                    val result = try { fetch() } catch (_: Exception) { Result(null, status = "network_error") }
-                    if (!closed.get()) completed.set(Completion(requestedGeneration, now, result))
-                } finally { inFlight.set(false) }
+                val result = try { fetch() } catch (_: Exception) { Result(null, status = "network_error") }
+                if (!closed.get()) completed.set(Completion(requestedGeneration, now, result))
             }
         } catch (_: RejectedExecutionException) {
             inFlight.set(false)

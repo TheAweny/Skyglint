@@ -16,14 +16,14 @@ handle every SkyBlock event.
 
 ## Install
 
-Download **`skyglint-0.2.0.jar`** from [GitHub Releases](https://github.com/TheAweny/Skyglint/releases/latest)
+Download **`skyglint-0.2.1.jar`** from [GitHub Releases](https://github.com/TheAweny/Skyglint/releases/latest)
 and put it in your Minecraft profile's `mods` folder together with:
 
 - [Fabric API](https://modrinth.com/mod/fabric-api), for **26.2**; tested with `0.161.0+26.2`.
 - [Fabric Language Kotlin](https://modrinth.com/mod/fabric-language-kotlin), **`1.13.13+kotlin.2.4.10` or newer**.
 
 Use **Fabric Loader 0.19.3 or newer** and **Java 25**. The official Hypixel Mod API is included.
-The optional `Skyglint-0.2.0-Minecraft-26.2.zip` contains the three required mod JARs;
+The optional `Skyglint-0.2.1-Minecraft-26.2.zip` contains the three required mod JARs;
 Fabric Loader still needs to be installed. The `-sources.jar` is for development.
 
 ## Use

@@ -25,17 +25,27 @@ class GitHubUpdateLiveTest {
     @Test
     @Timeout(value = 3, unit = TimeUnit.MINUTES)
     fun `public latest release downloads from a legacy installation with verified bytes and metadata`() {
+        verifyUpgrade("0.1.12")
+    }
+
+    @Test
+    @Timeout(value = 3, unit = TimeUnit.MINUTES)
+    fun `public latest patch downloads from the first public release without replacing its running jar`() {
+        verifyUpgrade("0.2.0")
+    }
+
+    private fun verifyUpgrade(loadedVersion: String) {
         val mods = Files.createDirectories(directory.resolve("mods"))
         val staging = directory.resolve("config/skyglint/downloads")
-        val legacy = mods.resolve("legacy-0.1.12.jar")
+        val legacy = mods.resolve("legacy-$loadedVersion.jar")
         // Synthetic installation metadata only: no historical mod code is executed.
         ZipOutputStream(Files.newOutputStream(legacy)).use { zip ->
             zip.putNextEntry(ZipEntry("fabric.mod.json"))
-            zip.write("""{"schemaVersion":1,"id":"reborn","version":"0.1.12","depends":{"minecraft":"26.2","java":">=25","fabricloader":">=0.19.3"}}""".toByteArray())
+            zip.write("""{"schemaVersion":1,"id":"reborn","version":"$loadedVersion","depends":{"minecraft":"26.2","java":">=25","fabricloader":">=0.19.3"}}""".toByteArray())
             zip.closeEntry()
         }
         val original = Files.readAllBytes(legacy)
-        val service = GitHubUpdateService(UpdateInstallation(mods, staging, legacy, "0.1.12", "0.19.3"))
+        val service = GitHubUpdateService(UpdateInstallation(mods, staging, legacy, loadedVersion, "0.19.3"))
         val release = assertIs<UpdateCheck.Available>(service.check()).release
         assertFalse(Files.exists(mods.resolve(release.assetName)), "Checking must not download the JAR")
         val installed = assertIs<UpdateDownload.Ready>(service.download(release))

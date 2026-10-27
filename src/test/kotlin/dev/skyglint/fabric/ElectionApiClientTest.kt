@@ -108,6 +108,20 @@ class ElectionApiClientTest {
             h.poll(300_000, "A"); fetch.awaitRequest(); assertEquals(2, fetch.calls.get())
         }
     }
+    @Test fun `instant responses never bypass cooldown during rapid polling`() {
+        repeat(30) {
+            val fetch = Fetcher()
+            Harness(fetch).use { h ->
+                h.poll(0, "A")
+                fetch.awaitRequest()
+                fetch.answer(ElectionApiClient.Result(payload))
+                h.until(1_000, "A") { h.deliveries.isNotEmpty() }
+                repeat(1_000) { h.poll(2_000, "A"); Thread.yield() }
+                assertEquals(1, fetch.calls.get(), "A completion must establish cooldown before another request can start")
+                assertEquals(1, h.deliveries.size)
+            }
+        }
+    }
     @Test fun `success completed while absent is cached and consumed only after active reentry`() {
         val fetch = Fetcher()
         Harness(fetch).use { h ->
