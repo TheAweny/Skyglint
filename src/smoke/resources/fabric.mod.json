@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "skyglint-smoke",
+  "version": "1.0.0",
+  "name": "Skyglint local smoke checks",
+  "environment": "client",
+  "entrypoints": { "client": ["dev.skyglint.smoke.SmokeClient"] },
+  "depends": { "reborn": "*" }
+}

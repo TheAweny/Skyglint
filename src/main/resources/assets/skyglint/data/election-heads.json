@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "source": {
+    "repository": "https://github.com/NotEnoughUpdates/NotEnoughUpdates-REPO",
+    "commit": "f19539bbd6c7cb017c5976505436d55c697e3938",
+    "license": "MIT",
+    "notice": "election-heads-license.txt"
+  },
+  "policy": "Public default candidate heads only. Unknown candidates have no fabricated skin. Mojang native skin cache downloads textures at runtime.",
+  "heads": [
+    {
+      "name": "Aatrox",
+      "texture": "c1bdf505bb8c0f1f3365a03032de1931663ff71c57e022558de312b8f1b5c445",
+      "item": "AATROX_MAYOR_MONSTER"
+    },
+    {
+      "name": "Barry",
+      "texture": "f04c591b164746e848f3d6a451ee87a62dd193e5c45e94ed78e72df119aca426",
+      "item": "BARRY_MAYOR_MONSTER"
+    },
+    {
+      "name": "Cole",
+      "texture": "16422de08848952d1cbead66bbbad6f07191bdcc952f3d1036aeb0c22938f39b",
+      "item": "COLE_MAYOR_MONSTER"
+    },
+    {
+      "name": "Dante",
+      "texture": "5af658e00ac0d0ce0686e79f59c067b9577c01ba57ad8c6575db8490c3161772",
+      "item": "DANTE_SPECIAL_MAYOR_MONSTER"
+    },
+    {
+      "name": "Derpy",
+      "texture": "f450d12692886c47b078a38f4d492acfe61216e2d0237ab82433409b3046b464",
+      "item": "DERPY_SPECIAL_MAYOR_MONSTER"
+    },
+    {
+      "name": "Diana",
+      "texture": "83cc1cf672a4b2540be346ead79ac2d9ed19d95b6075bf95be0b6d0da61377be",
+      "item": "DIANA_MAYOR_MONSTER"
+    },
+    {
+      "name": "Diaz",
+      "texture": "9cf4737cd444b590545734a6408cbe23c182f4283f167a3e3c09532ccbef17f9",
+      "item": "DIAZ_MAYOR_MONSTER"
+    },
+    {
+      "name": "Finnegan",
+      "texture": "e7747fbee9fb39be39b00d3d483eb2f88b4bae82417ab5cb1b1aa930dd7b6689",
+      "item": "FINNEGAN_MAYOR_MONSTER"
+    },
+    {
+      "name": "Foxy",
+      "texture": "3485a717fa0f51d7fadc66a5d5e9853905bef914e3b2848a2f128e63d2db87",
+      "item": "FOXY_MAYOR_MONSTER"
+    },
+    {
+      "name": "Jerry",
+      "texture": "822d8e751c8f2fd4c8942c44bdb2f5ca4d8ae8e575ed3eb34c18a86e93b",
+      "item": "JERRY_SPECIAL_MAYOR_MONSTER"
+    },
+    {
+      "name": "Marina",
+      "texture": "807fc9bee8d3344e840e4031a37249a4c3c87fc80cf16432cc5c2153d1f9c53d",
+      "item": "MARINA_MAYOR_MONSTER"
+    },
+    {
+      "name": "Paul",
+      "texture": "1b59c43d8dbccfd7ec6e6394b6304b70d4ed315add0494ee77c733f41818c73a",
+      "item": "PAUL_MAYOR_MONSTER"
+    },
+    {
+      "name": "Scorpius",
+      "texture": "8f26fa0c47536e78e337257d898af8b1ebc87c0894503375234035ff2c7ef8f0",
+      "item": "SCORPIUS_SPECIAL_MAYOR_MONSTER"
+    }
+  ]
+}

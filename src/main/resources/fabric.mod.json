@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "reborn",
+  "version": "${version}",
+  "name": "Skyglint",
+  "authors": ["TheAweny"],
+  "license": "LGPL-3.0-only",
+  "contact": {
+    "homepage": "https://github.com/TheAweny/Skyglint",
+    "sources": "https://github.com/TheAweny/Skyglint",
+    "issues": "https://github.com/TheAweny/Skyglint/issues"
+  },
+  "description": "A context-aware client HUD for Hypixel SkyBlock.",
+  "environment": "client",
+  "entrypoints": { "client": [{ "adapter": "kotlin", "value": "dev.skyglint.fabric.SkyglintClient" }] },
+  "mixins": ["skyglint.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "26.2",
+    "java": ">=25",
+    "fabric-api": "*",
+    "fabric-language-kotlin": ">=1.13.13+kotlin.2.4.10",
+    "hypixel-mod-api": ">=1.0.2"
+  }
+}

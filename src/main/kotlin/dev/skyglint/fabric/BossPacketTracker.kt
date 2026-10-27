@@ -1,0 +1,51 @@
+package dev.skyglint.fabric
+
+import dev.skyglint.core.BossBarState
+import net.minecraft.network.chat.Component
+import net.minecraft.network.protocol.game.ClientboundBossEventPacket
+import net.minecraft.world.BossEvent
+import java.util.UUID
+
+/** Exact packet values; rendering interpolation never pollutes diagnostic observations. */
+class BossPacketTracker(private val changed: (String, UUID, Map<String, Any?>) -> Unit) : ClientboundBossEventPacket.Handler {
+    val states = linkedMapOf<UUID, BossBarState>()
+    private val duplicates = linkedMapOf<String, Long>()
+    private val properties = mutableMapOf<UUID, Triple<Boolean, Boolean, Boolean>>()
+    private fun repeated(action: String) { duplicates[action] = (duplicates[action] ?: 0) + 1 }
+    fun drainDuplicates(): Map<String, Long> = duplicates.toMap().also { duplicates.clear() }
+    override fun add(id: UUID, name: Component, progress: Float, color: BossEvent.BossBarColor, overlay: BossEvent.BossBarOverlay,
+                     darken: Boolean, music: Boolean, fog: Boolean) {
+        states[id] = BossBarState(id, name.string, progress, color.name, overlay.name)
+        properties[id] = Triple(darken, music, fog)
+        changed("add", id, details(states.getValue(id)) + mapOf("darken" to darken, "music" to music, "fog" to fog))
+    }
+    override fun remove(id: UUID) {
+        states.remove(id)
+        properties.remove(id)
+        changed("remove", id, emptyMap())
+    }
+    override fun updateProgress(id: UUID, progress: Float) {
+        if (states[id]?.progress == progress) { repeated("progress"); return }
+        states[id]?.let { states[id] = it.copy(progress = progress) }
+        changed("progress", id, mapOf("progress" to progress))
+    }
+    override fun updateName(id: UUID, name: Component) {
+        if (states[id]?.title == name.string) { repeated("name"); return }
+        states[id]?.let { states[id] = it.copy(title = name.string) }
+        changed("name", id, mapOf("title" to name.string))
+    }
+    override fun updateStyle(id: UUID, color: BossEvent.BossBarColor, overlay: BossEvent.BossBarOverlay) {
+        if (states[id]?.let { it.color == color.name && it.overlay == overlay.name } == true) { repeated("style"); return }
+        states[id]?.let { states[id] = it.copy(color = color.name, overlay = overlay.name) }
+        changed("style", id, mapOf("color" to color.name, "overlay" to overlay.name))
+    }
+    override fun updateProperties(id: UUID, darken: Boolean, music: Boolean, fog: Boolean) {
+        val observed = Triple(darken, music, fog)
+        if (properties[id] == observed) { repeated("properties"); return }
+        properties[id] = observed
+        changed("properties", id, mapOf("darken" to darken, "music" to music, "fog" to fog))
+    }
+    fun clear() { states.clear(); properties.clear(); duplicates.clear() }
+    private fun details(state: BossBarState): Map<String, Any?> = mapOf("title" to state.title,
+        "progress" to state.progress, "color" to state.color, "overlay" to state.overlay)
+}

@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "dev.skyglint.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": ["BossHealthOverlayMixin", "PlayerTabOverlayAccessor", "effects.BackdropGraphicsAccessor", "effects.BackdropPipelineInvoker", "effects.BackdropGuiRendererMixin"],
+  "injectors": { "defaultRequire": 1 }
+}

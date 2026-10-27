@@ -1,0 +1,26 @@
+.gradle/
+build/
+run/
+run-smoke/
+run-update-smoke/
+.tools/
+.research/
+.idea/
+.kotlin/
+dist/
+*.iml
+.impeccable/
+local.properties
+
+# Local planning, investigation and captured diagnostics are not public release sources.
+/AGENTS.md
+/DESIGN.md
+/PRODUCT.md
+/docs/*
+!/docs/DEVELOPMENT.md
+!/docs/UPDATES.md
+*.log
+.env
+.env.*
+*.pem
+*.key

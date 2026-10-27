@@ -1,0 +1,450 @@
+{
+  "schema": 1,
+  "source": {
+    "repository": "https://github.com/NotEnoughUpdates/NotEnoughUpdates-REPO",
+    "commit": "f19539bbd6c7cb017c5976505436d55c697e3938",
+    "license": "MIT",
+    "notice": "pet-heads-license.txt"
+  },
+  "policy": "Default unskinned species heads only. Observed server items take precedence. Golden Dragon excluded because appearance changes with level.",
+  "heads": [
+    {
+      "id": "AMMONITE",
+      "name": "Ammonite",
+      "texture": "a074a7bd976fe6aba1624161793be547d54c835cf422243a851ba09d1e650553",
+      "sourceItem": "items/AMMONITE;4.json"
+    },
+    {
+      "id": "ARMADILLO",
+      "name": "Armadillo",
+      "texture": "c1eb6df4736ae24dd12a3d00f91e6e3aa7ade6bbefb0978afef2f0f92461018f",
+      "sourceItem": "items/ARMADILLO;4.json"
+    },
+    {
+      "id": "BABY_YETI",
+      "name": "Baby Yeti",
+      "texture": "ef9f6a57d8f686fedd5185d178550913f48f91b57c9162d70d368b1fd9fe2b52",
+      "sourceItem": "items/BABY_YETI;4.json"
+    },
+    {
+      "id": "BAL",
+      "name": "Bal",
+      "texture": "c469ba2047122e0a2de3c7437ad3dd5d31f1ac2d27abde9f8841e1d92a8c5b75",
+      "sourceItem": "items/BAL;4.json"
+    },
+    {
+      "id": "BAT",
+      "name": "Bat",
+      "texture": "377ade8afb257086fb1861da43c8ae468b8eb0578fada84303858517ba17217e",
+      "sourceItem": "items/BAT;4.json"
+    },
+    {
+      "id": "BEE",
+      "name": "Bee",
+      "texture": "9c72c132073ec5a058218d6fbfb4a9970652ced9214d53f4f614b3902fd99a7a",
+      "sourceItem": "items/BEE;4.json"
+    },
+    {
+      "id": "BINGO",
+      "name": "Bingo",
+      "texture": "d4cd9c707c7092d4759fe2b2b6a713215b6e39919ec4e7afb1ae2b6f8576674c",
+      "sourceItem": "items/BINGO;4.json"
+    },
+    {
+      "id": "BLACK_CAT",
+      "name": "Black Cat",
+      "texture": "8282b5a9bbe2cd3223724023cd4f6ad413f5bb9e0edef81700b8afc3072d04a5",
+      "sourceItem": "items/BLACK_CAT;4.json"
+    },
+    {
+      "id": "BLAZE",
+      "name": "Blaze",
+      "texture": "b78ef2e4cf2c41a2d14bfde9caff10219f5b1bf5b35a49eb51c6467882cb5f0",
+      "sourceItem": "items/BLAZE;4.json"
+    },
+    {
+      "id": "BLUE_WHALE",
+      "name": "Blue Whale",
+      "texture": "9ee72d3435c183dbdda2290cc8fcc9054b6e4d6e8f5338db4f4c1d9a30854b5d",
+      "sourceItem": "items/BLUE_WHALE;4.json"
+    },
+    {
+      "id": "CHICKEN",
+      "name": "Chicken",
+      "texture": "c6e573262297df2bfa81562498a22a90478e5c96e80d05885d87084de24d2b18",
+      "sourceItem": "items/CHICKEN;4.json"
+    },
+    {
+      "id": "CROW",
+      "name": "Crow",
+      "texture": "c31e7e1c614639bbc95a0d81ff7e5f7f606d9b33115cf2bf2a40cdcbbb531324",
+      "sourceItem": "items/CROW;4.json"
+    },
+    {
+      "id": "DOLPHIN",
+      "name": "Dolphin",
+      "texture": "1415d2c543e34bb88ede94d79b9427691fc9be72daad8831a9ef297180546e18",
+      "sourceItem": "items/DOLPHIN;4.json"
+    },
+    {
+      "id": "EERIE",
+      "name": "Eerie",
+      "texture": "c3af70c6ff76ba48f24ee8a2063a5b50bbfabf409f4795248a292f8289f47c98",
+      "sourceItem": "items/EERIE;4.json"
+    },
+    {
+      "id": "ELEPHANT",
+      "name": "Elephant",
+      "texture": "4ef8efea450632d2753a38a23a4f1502a8a685f6e99bf69205ec04420fd64f6",
+      "sourceItem": "items/ELEPHANT;4.json"
+    },
+    {
+      "id": "ENDER_DRAGON",
+      "name": "Ender Dragon",
+      "texture": "aec3ff563290b13ff3bcc36898af7eaa988b6cc18dc254147f58374afe9b21b9",
+      "sourceItem": "items/ENDER_DRAGON;4.json"
+    },
+    {
+      "id": "ENDERMAN",
+      "name": "Enderman",
+      "texture": "9f31c9b5a2bfe7443645b4e7e8ea408b04d554a9200b00afd574ce924b555ecb",
+      "sourceItem": "items/ENDERMAN;4.json"
+    },
+    {
+      "id": "ENDERMITE",
+      "name": "Endermite",
+      "texture": "18ae7046da98dcb33f3ed42f1dc41d08ac8dfa5db3a3860de5b1b5c056804187",
+      "sourceItem": "items/ENDERMITE;4.json"
+    },
+    {
+      "id": "FLYING_FISH",
+      "name": "Flying Fish",
+      "texture": "b8b1bc70136d620a822d08dfc2b04abe927e1c432b256139624b00c7bf4d3c1e",
+      "sourceItem": "items/FLYING_FISH;4.json"
+    },
+    {
+      "id": "FROG",
+      "name": "Frog",
+      "texture": "45852a95928897746012988fbd5dbaa1b70b7a5fb65157016f4ff3f245374c08",
+      "sourceItem": "items/FROG;4.json"
+    },
+    {
+      "id": "GHOUL",
+      "name": "Ghoul",
+      "texture": "1e1109bbd1f82c182363ed53b624b688924447f9f68b929674ad37f3cef762a8",
+      "sourceItem": "items/GHOUL;4.json"
+    },
+    {
+      "id": "GIRAFFE",
+      "name": "Giraffe",
+      "texture": "2528ce6ad51fcb6e27c85566e70da351075185f184d910f4996e4311d4a1bfa5",
+      "sourceItem": "items/GIRAFFE;4.json"
+    },
+    {
+      "id": "GLACITE_GOLEM",
+      "name": "Glacite Golem",
+      "texture": "af132a6593876d3c377d503fd66eca3fb938743251f7b16a9870c60b7388c8a3",
+      "sourceItem": "items/GLACITE_GOLEM;4.json"
+    },
+    {
+      "id": "GOLEM",
+      "name": "Golem",
+      "texture": "89091d79ea0f59ef7ef94d7bba6e5f17f2f7d4572c44f90f76c4819a714",
+      "sourceItem": "items/GOLEM;4.json"
+    },
+    {
+      "id": "GRANDMA_WOLF",
+      "name": "Grandma Wolf",
+      "texture": "4e794274c1bb197ad306540286a7aa952974f5661bccf2b725424f6ed79c7884",
+      "sourceItem": "items/GRANDMA_WOLF;4.json"
+    },
+    {
+      "id": "GRIFFIN",
+      "name": "Griffin",
+      "texture": "4c27e3cb52a64968e60c861ef1ab84e0a0cb5f07be103ac78da67761731f00c8",
+      "sourceItem": "items/GRIFFIN;4.json"
+    },
+    {
+      "id": "GUARDIAN",
+      "name": "Guardian",
+      "texture": "221025434045bda7025b3e514b316a4b770c6faa4ba9adb4be3809526db77f9d",
+      "sourceItem": "items/GUARDIAN;4.json"
+    },
+    {
+      "id": "HERMIT_CRAB",
+      "name": "Hermit Crab",
+      "texture": "26629dfa3fdfef04054024e0156d5e19da5401b1911f59b4bd3982685fe54c2c",
+      "sourceItem": "items/HERMIT_CRAB;4.json"
+    },
+    {
+      "id": "HORSE",
+      "name": "Horse",
+      "texture": "36fcd3ec3bc84bafb4123ea479471f9d2f42d8fb9c5f11cf5f4e0d93226",
+      "sourceItem": "items/HORSE;4.json"
+    },
+    {
+      "id": "HOUND",
+      "name": "Hound",
+      "texture": "1290ad550c376d0108b5be22dd5a4082a8621cf9d40b2807156ca1950d246207",
+      "sourceItem": "items/HOUND;4.json"
+    },
+    {
+      "id": "JADE_DRAGON",
+      "name": "Jade Dragon",
+      "texture": "4099589796de185787ab92c3066d0d0af832ffad7153a42bb2e2d23598e7ea60",
+      "sourceItem": "items/JADE_DRAGON;4.json"
+    },
+    {
+      "id": "JELLYFISH",
+      "name": "Jellyfish",
+      "texture": "64c9ad5400fa660cbd121d4415a33e07fdf20ecf212a6bd4e68a43c7f646f5c4",
+      "sourceItem": "items/JELLYFISH;4.json"
+    },
+    {
+      "id": "JERRY",
+      "name": "Jerry",
+      "texture": "822d8e751c8f2fd4c8942c44bdb2f5ca4d8ae8e575ed3eb34c18a86e93b",
+      "sourceItem": "items/JERRY;4.json"
+    },
+    {
+      "id": "KUUDRA",
+      "name": "Kuudra",
+      "texture": "1f0239fb498e5907ede12ab32629ee95f0064574a9ffdff9fc3a1c8e2ec17587",
+      "sourceItem": "items/KUUDRA;4.json"
+    },
+    {
+      "id": "LION",
+      "name": "Lion",
+      "texture": "38ff473bd52b4db2c06f1ac87fe1367bce7574fac330ffac7956229f82efba1",
+      "sourceItem": "items/LION;4.json"
+    },
+    {
+      "id": "MAGMA_CUBE",
+      "name": "Magma Cube",
+      "texture": "38957d5023c937c4c41aa2412d43410bda23cf79a9f6ab36b76fef2d7c429",
+      "sourceItem": "items/MAGMA_CUBE;4.json"
+    },
+    {
+      "id": "MEGALODON",
+      "name": "Megalodon",
+      "texture": "a94ae433b301c7fb7c68cba625b0bd36b0b14190f20e34a7c8ee0d9de06d53b9",
+      "sourceItem": "items/MEGALODON;4.json"
+    },
+    {
+      "id": "MITHRIL_GOLEM",
+      "name": "Mithril Golem",
+      "texture": "c1b2dfe8ed5dffc5b1687bc1c249c39de2d8a6c3d90305c95f6d1a1a330a0b1",
+      "sourceItem": "items/MITHRIL_GOLEM;4.json"
+    },
+    {
+      "id": "MONKEY",
+      "name": "Monkey",
+      "texture": "96e1836c73af42cf3c299fcb56d7342bf305f720be3c8cce2a0fae199794207a",
+      "sourceItem": "items/MONKEY;4.json"
+    },
+    {
+      "id": "MOOSHROOM_COW",
+      "name": "Mooshroom Cow",
+      "texture": "47f1bc3fa91cd86cf4ba7745586d67207b58e7cf27bdf7a717780843785bf9b5",
+      "sourceItem": "items/MOOSHROOM_COW;4.json"
+    },
+    {
+      "id": "MOSQUITO",
+      "name": "Mosquito",
+      "texture": "52a9fe05bc663efcd12e56a3ccc5ec035bf577b78708548b6f4ffcf1d30eccfe",
+      "sourceItem": "items/MOSQUITO;4.json"
+    },
+    {
+      "id": "OCELOT",
+      "name": "Ocelot",
+      "texture": "5657cd5c2989ff97570fec4ddcdc6926a68a3393250c1be1f0b114a1db1",
+      "sourceItem": "items/OCELOT;4.json"
+    },
+    {
+      "id": "ORCHID_MANTIS",
+      "name": "Orchid Mantis",
+      "texture": "36903a9520564c22bc66b05d2161b23e54ff961284e63e684065ae0781c9cd97",
+      "sourceItem": "items/ORCHID_MANTIS;4.json"
+    },
+    {
+      "id": "OWL",
+      "name": "Owl",
+      "texture": "da3216da54e7368fb40b721239ad95e07ef4f97d93f1c42ff319bab9a53882af",
+      "sourceItem": "items/OWL;4.json"
+    },
+    {
+      "id": "PARROT",
+      "name": "Parrot",
+      "texture": "5df4b3401a4d06ad66ac8b5c4d189618ae617f9c143071c8ac39a563cf4e4208",
+      "sourceItem": "items/PARROT;4.json"
+    },
+    {
+      "id": "PIG",
+      "name": "Pig",
+      "texture": "621668ef7cb79dd9c22ce3d1f3f4cb6e2559893b6df4a469514e667c16aa4",
+      "sourceItem": "items/PIG;4.json"
+    },
+    {
+      "id": "PIGMAN",
+      "name": "Pigman",
+      "texture": "d15afad53d1726fae86b3fb11ba01e51112b1055e8e5af8b7df86ef956f1d4a1",
+      "sourceItem": "items/PIGMAN;4.json"
+    },
+    {
+      "id": "PRECURSOR_DRONE",
+      "name": "Precursor Drone",
+      "texture": "51aae288ab9d5354fda4e395a36421bd261a9b6213dbb786d7ab39465e479ce9",
+      "sourceItem": "items/PRECURSOR_DRONE;4.json"
+    },
+    {
+      "id": "RABBIT",
+      "name": "Rabbit",
+      "texture": "63438555e899bd9a051a95dbea49eb2ecfa52a69dbba8998f3673819e277fdf5",
+      "sourceItem": "items/RABBIT;4.json"
+    },
+    {
+      "id": "RAT",
+      "name": "Rat",
+      "texture": "a8abb471db0ab78703011979dc8b40798a941f3a4dec3ec61cbeec2af8cffe8",
+      "sourceItem": "items/RAT;4.json"
+    },
+    {
+      "id": "REINDEER",
+      "name": "Reindeer",
+      "texture": "a2df65c6fd19a58bee38252192ac7ce2cf1dc8632c3547a9228b6b697240d098",
+      "sourceItem": "items/REINDEER;4.json"
+    },
+    {
+      "id": "ROCK",
+      "name": "Rock",
+      "texture": "7df8aab57136df2296c7c6f969ff25d58116fe2ec59b96a85ba4927e1f6779e6",
+      "sourceItem": "items/ROCK;4.json"
+    },
+    {
+      "id": "ROSE_DRAGON",
+      "name": "Rose Dragon",
+      "texture": "9b7c3de075a2bb238ef51431206b10d586cb2a5b1cc41fe851cc5f0b02d357c7",
+      "sourceItem": "items/ROSE_DRAGON;4.json"
+    },
+    {
+      "id": "SCATHA",
+      "name": "Scatha",
+      "texture": "df03ad96092f3f789902436709cdf69de6b727c121b3c2daef9ffa1ccaed186c",
+      "sourceItem": "items/SCATHA;4.json"
+    },
+    {
+      "id": "SEAL",
+      "name": "Seal",
+      "texture": "3a7728bbf6f53f6c1e3b121778e2c2175f6c27032dbd9a5fb3a0d8747e104f67",
+      "sourceItem": "items/SEAL;4.json"
+    },
+    {
+      "id": "SHEEP",
+      "name": "Sheep",
+      "texture": "64e22a46047d272e89a1cfa13e9734b7e12827e235c2012c1a95962874da0",
+      "sourceItem": "items/SHEEP;4.json"
+    },
+    {
+      "id": "SILVERFISH",
+      "name": "Silverfish",
+      "texture": "811a1173af3bead305e6339f555662e990d5faadb87e07299fa68ca828a6d2fb",
+      "sourceItem": "items/SILVERFISH;4.json"
+    },
+    {
+      "id": "SKELETON_HORSE",
+      "name": "Skeleton Horse",
+      "texture": "abc63ba27357898cf2e64da94802c74efc17ffd24064b5327fbc59694bc5e3dc",
+      "sourceItem": "items/SKELETON_HORSE;4.json"
+    },
+    {
+      "id": "SKELETON",
+      "name": "Skeleton",
+      "texture": "fca445749251bdd898fb83f667844e38a1dff79a1529f79a42447a0599310ea4",
+      "sourceItem": "items/SKELETON;4.json"
+    },
+    {
+      "id": "SLOTH",
+      "name": "Sloth",
+      "texture": "5468537e1e99040b760c83e53096c86870cdcd9285d53300761d0e36ff9e192f",
+      "sourceItem": "items/SLOTH;4.json"
+    },
+    {
+      "id": "SLUG",
+      "name": "Slug",
+      "texture": "7a79d0fd677b54530961117ef84adc206e2cc5045c1344d61d776bf8ac2fe1ba",
+      "sourceItem": "items/SLUG;4.json"
+    },
+    {
+      "id": "SNAIL",
+      "name": "Snail",
+      "texture": "50a9933a3b10489d38f6950c4e628bfcf9f7a27f8d84666f04f14d5374252972",
+      "sourceItem": "items/SNAIL;4.json"
+    },
+    {
+      "id": "SNOWMAN",
+      "name": "Snowman",
+      "texture": "609e161bdc325c71572a548a79bb15481c924d63e4fb821379d5dd6c8929f39f",
+      "sourceItem": "items/SNOWMAN;4.json"
+    },
+    {
+      "id": "SPIDER",
+      "name": "Spider",
+      "texture": "cd541541daaff50896cd258bdbdd4cf80c3ba816735726078bfe393927e57f1",
+      "sourceItem": "items/SPIDER;4.json"
+    },
+    {
+      "id": "SPIRIT",
+      "name": "Spirit",
+      "texture": "8d9ccc670677d0cebaad4058d6aaf9acfab09abea5d86379a059902f2fe22655",
+      "sourceItem": "items/SPIRIT;4.json"
+    },
+    {
+      "id": "SQUID",
+      "name": "Squid",
+      "texture": "01433be242366af126da434b8735df1eb5b3cb2cede39145974e9c483607bac",
+      "sourceItem": "items/SQUID;4.json"
+    },
+    {
+      "id": "TARANTULA",
+      "name": "Tarantula",
+      "texture": "b81b5cf3a65bf9cab4bca55781721a86d567d9e106551647f35b715edf00a13f",
+      "sourceItem": "items/TARANTULA;4.json"
+    },
+    {
+      "id": "TIGER",
+      "name": "Tiger",
+      "texture": "fc42638744922b5fcf62cd9bf27eeab91b2e72d6c70e86cc5aa3883993e9d84",
+      "sourceItem": "items/TIGER;4.json"
+    },
+    {
+      "id": "TURTLE",
+      "name": "Turtle",
+      "texture": "242f86b51c8992b3758e85fe35bb2a20399ad4685095466e7feb54c6902fad8e",
+      "sourceItem": "items/TURTLE;4.json"
+    },
+    {
+      "id": "WITCH",
+      "name": "Witch",
+      "texture": "baf818b04d6ae98a69ad8d9463d8d0379921d3eb79222e1c6272f65372d80775",
+      "sourceItem": "items/WITCH;4.json"
+    },
+    {
+      "id": "WITHER_SKELETON",
+      "name": "Wither Skeleton",
+      "texture": "d50e972d26c3dbc4e1663aaf583388ff321e958d195f8a465b71a596a736fe9c",
+      "sourceItem": "items/WITHER_SKELETON;4.json"
+    },
+    {
+      "id": "WOLF",
+      "name": "Wolf",
+      "texture": "81483105ab8c33f04c97c7493c9871c8a51cc49df6d9b5e23b26652094bf3030",
+      "sourceItem": "items/WOLF;4.json"
+    },
+    {
+      "id": "ZOMBIE",
+      "name": "Zombie",
+      "texture": "56fc854bb84cf4b7697297973e02b79bc10698460b51a639c60e5e417734e11",
+      "sourceItem": "items/ZOMBIE;4.json"
+    }
+  ]
+}
