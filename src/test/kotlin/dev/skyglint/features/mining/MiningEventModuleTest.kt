@@ -34,6 +34,11 @@ class MiningEventModuleTest {
         assertEquals("×2 · 2:08", bosses(boss()).widget()!!.value())
         time = 134_000
         context()
+        val awaitingZero = bosses(boss()).widget()!!.presentation!!.metrics.single()
+        assertEquals("0:00", awaitingZero.countdown!!.caption(time))
+        assertEquals("Double Powder", awaitingZero.label)
+        time += 5_000
+        context()
         assertTrue(bosses(boss()).all { it is CoreEvent.WidgetRemoved })
     }
     @Test fun `changed actual timer anchors new observed remaining time without delta accounting`() {
@@ -73,9 +78,10 @@ class MiningEventModuleTest {
     @Test fun `end chat prevents an unchanged stale boss replay from resurrecting the event`() {
         context(); bosses(boss())
         time = 1_000
-        assertTrue(module.parse(NormalizedSignal.Chat("2X POWDER ENDED!")).all { it is CoreEvent.WidgetRemoved })
+        val ending = module.parse(NormalizedSignal.Chat("2X POWDER ENDED!")).widget()!!.presentation!!.metrics.single()
+        assertEquals("Double Powder ended", ending.label)
         time = 1_001
-        assertNull(bosses(boss()).widget())
+        assertNull(bosses(boss()).widget()!!.presentation!!.metrics.single().countdown)
         assertNotNull(bosses(boss(title = "PASSIVE EVENT 2X POWDER RUNNING FOR 15:00")).widget())
         module.onSessionEnded()
         assertNull(bosses(boss()).widget())
@@ -84,7 +90,8 @@ class MiningEventModuleTest {
         context()
         tab("Mining Event: 2x Powder", "Ends in: 5m 30s")
         module.parse(NormalizedSignal.Chat("2X POWDER ENDED!"))
-        assertNull(tab("Mining Event: 2x Powder", "Ends in: 5m 30s").widget())
+        assertEquals("Double Powder ended", tab("Mining Event: 2x Powder", "Ends in: 5m 30s")
+            .widget()!!.presentation!!.metrics.single().label)
         assertNotNull(tab("Mining Event: 2x Powder", "Ends in: 15m").widget())
     }
     @Test fun `two known UUID bars of the same type share one metric while both IDs are preserved as claims`() {
@@ -114,4 +121,114 @@ class MiningEventModuleTest {
         assertNull(context("crystal_hollows").widget())
         assertNotNull(bosses(boss()).widget())
     }
+
+    @Test fun `Crystal Nucleus objective multiplex keeps local clock without claiming objective or restarting intro`() {
+        context("crystal_hollows", "Crystal Nucleus")
+        val initial = bosses(boss(title = "PASSIVE EVENT BETTER TOGETHER RUNNING FOR 03:46"))
+        val deadline = initial.widget()!!.presentation!!.metrics.single().countdown!!
+        assertEquals(1, initial.filterIsInstance<CoreEvent.NoticeObserved>().size)
+        for (second in 1..20) {
+            time = second * 1_000L
+            context("crystal_hollows", "Crystal Nucleus")
+            val gap = bosses(boss(title = "Objective: Talk to the Goblin King"))
+            val retained = gap.widget()!!.presentation!!.metrics.single()
+            assertEquals(deadline, retained.countdown)
+            assertTrue(retained.replacedBossIds.isEmpty())
+            assertTrue(gap.filterIsInstance<CoreEvent.NoticeObserved>().isEmpty())
+            time += 100
+            val left = 226 - second
+            val refreshed = bosses(boss(title = "PASSIVE EVENT BETTER TOGETHER RUNNING FOR ${left / 60}:${(left % 60).toString().padStart(2, '0')}"))
+            val metric = refreshed.widget()!!.presentation!!.metrics.single()
+            assertEquals(deadline, metric.countdown)
+            assertEquals(setOf(powderId), metric.replacedBossIds)
+            assertTrue(refreshed.filterIsInstance<CoreEvent.NoticeObserved>().isEmpty())
+        }
+    }
+
+    @Test fun `nonmatching same UUID title cannot renew retained event source lease`() {
+        context("crystal_hollows", "Crystal Nucleus")
+        bosses(boss())
+        for (second in 1..5) {
+            time = second * 1_000L
+            context("crystal_hollows", "Crystal Nucleus")
+            val retained = bosses(boss(title = "Future unknown boss 42"))
+            if (second < 5) assertTrue(retained.widget()!!.replacedBossIds.isEmpty())
+            else assertNull(retained.widget())
+        }
+    }
+
+    @Test fun `observed zero expands same metric once and repeated zero or objective never extends ending`() {
+        context("crystal_hollows", "Crystal Nucleus")
+        bosses(boss(title = "PASSIVE EVENT BETTER TOGETHER RUNNING FOR 00:02"))
+        time = 2_000; context("crystal_hollows", "Crystal Nucleus")
+        val zero = bosses(boss(title = "PASSIVE EVENT BETTER TOGETHER RUNNING FOR 00:00"))
+        val ending = zero.widget()!!.presentation!!.metrics.single()
+        assertEquals("event:better_together", ending.id)
+        assertEquals("Better Together ended", ending.label)
+        assertNull(ending.countdown)
+        assertEquals(setOf(powderId), ending.replacedBossIds)
+        assertEquals(4_400L, ending.expandedUntil)
+        assertTrue(zero.filterIsInstance<CoreEvent.NoticeObserved>().isEmpty())
+        time = 2_600
+        val objective = bosses(boss(title = "Objective: Talk to the Goblin King")).widget()!!.presentation!!.metrics.single()
+        assertEquals(ending.expandedUntil, objective.expandedUntil)
+        assertTrue(objective.replacedBossIds.isEmpty())
+        time = 2_700
+        assertEquals(ending.expandedUntil, bosses(boss(title = "PASSIVE EVENT BETTER TOGETHER RUNNING FOR 00:00"))
+            .widget()!!.presentation!!.metrics.single().expandedUntil)
+        time = 3_000
+        assertEquals(ending.expandedUntil, module.parse(NormalizedSignal.Chat("BETTER TOGETHER ENDED!"))
+            .widget()!!.presentation!!.metrics.single().expandedUntil)
+        time = 3_100
+        assertNotNull(bosses().widget()) // The confirmed ending outlives server bar removal briefly.
+        time = 4_400
+        assertNull(context("crystal_hollows", "Crystal Nucleus").widget())
+    }
+
+    @Test fun `each passive ends by its own title and zero never introduces a new running event`() {
+        for (type in listOf("2X POWDER" to "Double Powder", "BETTER TOGETHER" to "Better Together", "GONE WITH THE WIND" to "Gone with the Wind")) {
+            module.onSessionStarted("new")
+            context()
+            val events = bosses(boss(title = "PASSIVE EVENT ${type.first} RUNNING FOR 00:00"))
+            assertEquals("${type.second} ended", events.widget()!!.presentation!!.metrics.single().label)
+            assertTrue(events.filterIsInstance<CoreEvent.NoticeObserved>().isEmpty())
+        }
+    }
+
+    @Test fun `source loss and session change never manufacture a completion message`() {
+        context("crystal_hollows", "Crystal Nucleus"); bosses(boss())
+        time = 500
+        assertNull(bosses().widget())
+        assertNull(module.parse(NormalizedSignal.Chat("2X POWDER ENDED!")).widget())
+        bosses(boss(title = "PASSIVE EVENT 2X POWDER RUNNING FOR 00:00"))
+        assertNull(context("mining_3").widget())
+        module.onSessionEnded()
+        context()
+        assertNull(context().widget())
+    }
+
+    @Test fun `late end chat cannot resurrect a source whose lease already expired`() {
+        context(); bosses(boss())
+        time = 6_000; context()
+        assertNull(module.parse(NormalizedSignal.Chat("2X POWDER ENDED!")).widget())
+    }
+
+    @Test fun `delayed first alternate source cannot replace confirmed ending with another introduction`() {
+        context()
+        val first = bosses(boss(title = "PASSIVE EVENT 2X POWDER RUNNING FOR 00:00"))
+            .widget()!!.presentation!!.metrics.single()
+        time = 100
+        val tabReplay = tab("Mining Event: 2x Powder", "Ends in: 1s")
+        assertEquals(first.expandedUntil, tabReplay.widget()!!.presentation!!.metrics.single().expandedUntil)
+        assertEquals("Double Powder ended", tabReplay.widget()!!.presentation!!.metrics.single().label)
+        assertTrue(tabReplay.filterIsInstance<CoreEvent.NoticeObserved>().isEmpty())
+        module.onSessionEnded(); context()
+        val tabZero = tab("Mining Event: Better Together", "Ends in: 0s").widget()!!.presentation!!.metrics.single()
+        time = 200
+        val bossReplay = bosses(boss(title = "PASSIVE EVENT BETTER TOGETHER RUNNING FOR 00:01"))
+        assertEquals(tabZero.expandedUntil, bossReplay.widget()!!.presentation!!.metrics.single().expandedUntil)
+        assertEquals("Better Together ended", bossReplay.widget()!!.presentation!!.metrics.single().label)
+        assertTrue(bossReplay.filterIsInstance<CoreEvent.NoticeObserved>().isEmpty())
+    }
+
 }

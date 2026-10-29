@@ -22,6 +22,7 @@ final class WorldSmoke {
     private int phase;
     private final WinterSmoke winterProof = new WinterSmoke();
     private final SettingsWorkspaceSmoke settingsProof = new SettingsWorkspaceSmoke();
+    private final MiningClockSmoke miningClockProof = new MiningClockSmoke();
     private int totalWait;
     private int sequenceTicks = -1;
     private int eventTicks = -1;
@@ -157,6 +158,10 @@ final class WorldSmoke {
             return;
         }
         ticks++;
+        if (Boolean.getBoolean("skyglint.smoke.miningClockOnly")) {
+            miningClockProof.tick(client);
+            return;
+        }
         if (Boolean.getBoolean("skyglint.smoke.settingsOnly")) {
             settingsProof.tick(client);
             return;

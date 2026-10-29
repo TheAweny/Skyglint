@@ -28,14 +28,14 @@ unknown bars keep their original text, UUID and packet fill. Isolated previews a
 
 ## Install
 
-Download **`skyglint-0.3.0.jar`** from [GitHub Releases](https://github.com/TheAweny/Skyglint/releases/latest)
+Download **`skyglint-0.3.1.jar`** from [GitHub Releases](https://github.com/TheAweny/Skyglint/releases/latest)
 and put it in your Minecraft profile's `mods` folder together with:
 
 - [Fabric API](https://modrinth.com/mod/fabric-api), for **26.2**; tested with `0.161.0+26.2`.
 - [Fabric Language Kotlin](https://modrinth.com/mod/fabric-language-kotlin), **`1.13.13+kotlin.2.4.10` or newer**.
 
 Use **Fabric Loader 0.19.3 or newer** and **Java 25**. The official Hypixel Mod API is included.
-The optional `Skyglint-0.3.0-Minecraft-26.2.zip` contains the three required mod JARs;
+The optional `Skyglint-0.3.1-Minecraft-26.2.zip` contains the three required mod JARs;
 Fabric Loader still needs to be installed. The `-sources.jar` is for development.
 
 ## Use
@@ -55,6 +55,10 @@ widgets can keep their own placement; current elements remain one linked row.
 When the private-island HUD has no objective or activity helpers, SkyBlock expands
 to its observed level and XP contour alongside the pet. Fishing bait always shows
 its server-reported remaining quantity, including the short name introduction.
+
+Mining event clocks stay steady when Crystal Hollows alternates an event and an
+objective on the same bossbar. A confirmed ending briefly expands the same capsule
+to the event name followed by **ended**, then fades out.
 
 Module/event settings control presentation while observations continue updating.
 Reward item rules are editable under **Modules → Rewards → Item rules**. Important

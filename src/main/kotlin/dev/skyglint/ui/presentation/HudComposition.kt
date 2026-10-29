@@ -156,12 +156,12 @@ class HudComposition {
                 val score = if (metric.id == "score") RankVisuals.score(metric.value) else null
                 val timer = metric.countdown
                 val item = metric.format == WidgetMetricFormat.ITEM
-                val expandedItem = item && metric.expandedUntil?.let { now < it } == true
+                val expanded = metric.expandedUntil?.let { now < it } == true
                 val remainingText = timer != null && metric.format == WidgetMetricFormat.REMAINING_TIME
                 val fuel = widget.id == "skyglint.mining.drill_fuel.current" && metric.id == "fuel"
                 val fraction = widget.progress?.fraction
                 add(HudElement(if (block.grouped) block.id else "metric:${widget.id}:${metric.id}", when {
-                    expandedItem -> HudElementKind.MAIN
+                    expanded -> HudElementKind.MAIN
                     item && metric.value.isEmpty() -> HudElementKind.ICON
                     timer != null && !remainingText -> HudElementKind.TIMER
                     else -> HudElementKind.COUNTER
@@ -180,7 +180,7 @@ class HudComposition {
                     },
                     progress = timer?.fraction(now)?.takeUnless { remainingText },
                     value = if (remainingText) timer.caption(now) else if (timer != null) "X2".takeIf { metric.id == "event:double_powder" }
-                        else (if (item) metric.value else compact(score?.number ?: metric.value)).takeUnless { item && it.isEmpty() },
+                        else (if (item) metric.value else compact(score?.number ?: metric.value)).takeIf { it.isNotEmpty() },
                     subtitle = if (score != null) listOfNotNull(metric.value, metric.detail).joinToString(" · ") else if (metric.id == "visitors")
                         listOfNotNull(widget.presentation?.metrics?.firstOrNull { it.id == "next_visitor" }?.value, metric.detail)
                             .joinToString(" · ").ifEmpty { null } else metric.detail,
@@ -250,6 +250,13 @@ class HudComposition {
         }
         notice.target?.let { target ->
             val visual = MiningBossVisuals.resolve(target.metricId.removePrefix("event:"))
+            targetMetric?.takeIf { it.countdown == null && it.expandedUntil?.let { until -> now < until } == true }?.let { metric ->
+                return HudElement("metric:${target.widgetId}:${target.metricId}", HudElementKind.MAIN,
+                    metric.label, metric.icon ?: notice.item?.vanillaItemId,
+                    metric.accent ?: visual?.accent ?: CYAN,
+                    value = metric.value.takeIf { it.isNotEmpty() }, priority = metric.priority,
+                    coloredText = metric.value.takeIf { metric.accent != null })
+            }
             val timer = notice.countdown
             return HudElement("metric:${target.widgetId}:${target.metricId}", HudElementKind.MAIN,
                 notice.title, notice.item?.vanillaItemId, targetMetric?.accent ?: visual?.accent ?: CYAN,

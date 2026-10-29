@@ -139,6 +139,10 @@ loom {
                 vmArg("-Dskyglint.smoke.world=true")
                 vmArg("-Dskyglint.smoke.settingsOnly=true")
             }
+            if (project.hasProperty("miningClockSmoke")) {
+                vmArg("-Dskyglint.smoke.world=true")
+                vmArg("-Dskyglint.smoke.miningClockOnly=true")
+            }
         } }
     }
 }
