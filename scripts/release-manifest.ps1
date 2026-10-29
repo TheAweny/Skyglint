@@ -1,4 +1,8 @@
-param([string]$Version, [string]$OutputDirectory)
+param(
+    [string]$Version,
+    [string]$OutputDirectory,
+    [ValidateSet('normal', 'important', 'critical')][string]$Importance = 'normal'
+)
 $ErrorActionPreference = 'Stop'
 $releaseRoot = Split-Path -Parent $PSScriptRoot
 $releaseProperties = Get-Content -LiteralPath (Join-Path $releaseRoot 'gradle.properties')
@@ -13,6 +17,7 @@ $releaseDigest = (Get-FileHash -LiteralPath $releaseJar -Algorithm SHA256).Hash.
 $releaseManifest = [ordered]@{
     schema = 1
     version = $Version
+    importance = $Importance.ToLowerInvariant()
     minecraft = '26.2'
     java = 25
     fabricLoader = '0.19.3'

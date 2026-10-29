@@ -83,11 +83,11 @@ class MiningEventModule(private val clock: () -> Long) : SignalModule {
         tab?.takeIf { fresh(tabAt, now) && now < it.deadline && it.event.type !in byType }?.let { byType[it.event.type] = it }
         if (byType.isEmpty()) return removed()
         val metrics = byType.entries.sortedBy { it.key.ordinal }.map { (type, observation) ->
-            val seconds = (observation.deadline - now + 999) / 1_000
-            val timer = "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}"
+            val countdown = CountdownSnapshot(observation.deadline, observation.interval.coerceAtLeast(1))
+            val timer = countdown.caption(now)
             WidgetMetric("event:${type.id}", type.title, "${type.shortLabel} · $timer", type.icon, 80,
                 detail = observation.event.location,
-                countdown = CountdownSnapshot(observation.deadline, observation.interval.coerceAtLeast(1)),
+                countdown = countdown,
                 replacedBossIds = freshBosses.filterValues { it.event.type == type }.keys.toSet())
         }
         val widget = CoreEvent.WidgetObserved(ModuleWidget(WIDGET_ID, "Mining events", priority = 45,

@@ -39,7 +39,7 @@ class FishingBaitModule(private val clock: () -> Long = { System.nanoTime() / 1_
         if (!holdingRod || previewAt == Long.MIN_VALUE || now - previewAt !in 0 until LEASE) return removed()
         val metrics = buildList {
             selected?.let { bait ->
-                add(WidgetMetric("bait_selected", bait.name, if (bait.remaining <= LOW_THRESHOLD) bait.remaining.toString() else "", "@fishing_bait",
+                add(WidgetMetric("bait_selected", bait.name, bait.remaining.toString(), "@fishing_bait",
                     priority = 100, detail = "Selected bait · ${bait.name} · ${bait.remaining} remaining" +
                         when { bait.remaining == 0L -> " · Depleted"; bait.remaining <= LOW_THRESHOLD -> " · Low"; else -> "" },
                     group = GROUP, accent = when { bait.remaining == 0L -> RED; bait.remaining <= LOW_THRESHOLD -> YELLOW; else -> null },

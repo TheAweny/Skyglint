@@ -7,6 +7,9 @@ import dev.skyglint.core.PetSnapshot
 import dev.skyglint.fabric.PetIconCache
 import dev.skyglint.ui.effects.HudBackdrop
 import dev.skyglint.ui.motion.*
+import dev.skyglint.ui.layout.HudRowLayout
+import dev.skyglint.ui.layout.HudPlacement
+import dev.skyglint.ui.layout.HudEditorBounds
 import dev.skyglint.ui.presentation.*
 import dev.skyglint.ui.text.HudText
 import net.minecraft.client.Minecraft
@@ -19,8 +22,10 @@ import kotlin.math.*
 
 /** Independent elements retain their payload and motion through entrance, takeover and exit. */
 object SkyglintHud {
+    var editorPlacement: HudPlacement? = null
+    var editorBounds: HudEditorBounds? = null
+    var editorSnapshot: dev.skyglint.core.HudSnapshot? = null
     private const val HEIGHT = 30f
-    private const val GAP = 5.0
     private const val WHITE = 0xFFF1F5FA.toInt()
     private val composition = HudComposition()
     private val entries = linkedMapOf<String, Entry>()
@@ -49,10 +54,11 @@ object SkyglintHud {
         var contentLayers: List<ContentTransition.Layer> = emptyList()
     }
 
-    fun render(g: GuiGraphicsExtractor) {
+    @JvmOverloads fun render(g: GuiGraphicsExtractor, forEditor: Boolean = false) {
         val client = Minecraft.getInstance()
-        if (client.gui.hud.isHidden || client.gui.overlay() != null) return
-        var snapshot = SkyglintClient.hudSnapshot()
+        if (client.gui.screen() is SkyglintHudEditorScreen && !forEditor) return
+        if ((client.gui.hud.isHidden && !forEditor) || client.gui.overlay() != null) return
+        var snapshot = editorSnapshot ?: SkyglintClient.hudSnapshot()
         val config = SkyglintClient.config.current
         if (!snapshot.active || (!config.enabled && !SkyglintClient.preview)) { reset(); return }
         if (session != snapshot.sessionId) { reset(); session = snapshot.sessionId }
@@ -63,15 +69,21 @@ object SkyglintHud {
         val dt = if (previousFrame == 0L) 0.0 else (now - previousFrame).coerceAtLeast(0) / 1000.0
         previousFrame = now
         // Hidden progression keeps receiving new snapshots while a priority notice owns the stage.
-        val underlying = composition.compose(snapshot.copy(activeNotice = null, notice = null), now, config.showPets, config.detailedDungeonHud)
+        val preferences = HudPreferences(config.showPets, config.detailedDungeonHud,
+            showGardenVisitors=config.showGardenVisitors, showGardenPests=config.showGardenPests,
+            showCropMilestones=config.showCropMilestones, showMiningTimers=config.showMiningTimers,
+            showFuelWarnings=config.showFuelWarnings, showPetIntroduction=config.showPetIntroduction,
+            showFishingBait=config.showFishingBait, showSackWarning=config.showSackWarning,
+            rotationSeconds=config.rotationSeconds, helperLimit=config.helperLimit,
+            showJerryDefense=config.showJerryDefense, showReindrake=config.showReindrake)
+        val underlying = composition.compose(snapshot.copy(activeNotice = null, notice = null), now, preferences)
         val desired = if (snapshot.activeNotice != null || snapshot.notice != null)
-            composition.compose(snapshot, now, config.showPets, config.detailedDungeonHud) else underlying
+            composition.compose(snapshot, now, preferences) else underlying
         val desiredMap = desired.associateBy { it.id }
         val observed = (underlying + desired).associateBy { it.id }
         desired.forEachIndexed { index, element ->
             entries.getOrPut(element.id) { Entry(element, index) }.also { it.order = index }
         }
-        var cursor = 0.0
         val ordered = entries.values.sortedWith(compareBy<Entry> { it.order }.thenBy { it.element.id })
         ordered.forEach { entry ->
             val next = observed[entry.element.id]
@@ -99,20 +111,26 @@ object SkyglintHud {
             val percent = entry.pulse.observe(data.identity, data.progress, now)
             entry.percentState = entry.percent.update(data.identity, percent, dt)
             entry.fill.step(data.progress ?: 0.0, dt)
-            entry.targetX = cursor
-            val state = entry.motion.update(data.id in desiredMap, cursor, width(data), entry.currentKey, dt)
+            val state = entry.motion.update(data.id in desiredMap, entry.targetX, width(data), entry.currentKey, dt)
             entry.state = state
             entry.contentLayers = entry.content.update(entry.currentKey, dt, data.verticalTransition)
-            cursor += state.occupiedWidth + GAP * state.visibility
             val retained = entry.contentLayers.mapTo(mutableSetOf(entry.currentKey)) { it.key }
             entry.payloads.keys.retainAll(retained)
         }
-        val last = ordered.lastOrNull { it.state?.visible == true }
-        val total = (cursor - GAP * (last?.state?.visibility ?: 0.0)).coerceAtLeast(1.0)
+        val layout = HudRowLayout.place(ordered.map { entry ->
+            val state = entry.state!!
+            HudRowLayout.Item(entry.element.id, state.occupiedWidth, state.visibility, state.visible)
+        })
+        val bounds = layout.placements.associate { it.slotId to it.bounds }
+        ordered.forEach { it.targetX = bounds.getValue(it.element.id).x }
+        val total = layout.width
         if (ordered.none { it.state?.visible == true }) return
         val previewHeight = if (SkyglintClient.preview) 14 else 0
-        val viewport = HudViewport.fit(g.guiWidth(), g.guiHeight(), client.window.guiScale, config.renderScale,
-            ceil(total).toInt(), HEIGHT.toInt() + previewHeight, config.topOffset, ceil(total).toInt().coerceAtLeast(1_000))
+        val placement = (editorPlacement ?: HudPlacement(config.hudOffsetX,config.hudPositionY,config.hudScale)).sanitized()
+        val baseViewport = HudViewport.fit(g.guiWidth(), g.guiHeight(), client.window.guiScale, placement.scale*dev.skyglint.config.ModConfig.PROTOTYPE_BASE_SCALE,
+            ceil(total).toInt(), HEIGHT.toInt() + previewHeight, if(placement.positionY==null)config.topOffset else 6, ceil(total).toInt().coerceAtLeast(1_000))
+        val viewport = placement.place(baseViewport,g.guiWidth(),g.guiHeight(),HEIGHT+previewHeight)
+        if(forEditor)editorBounds=HudEditorBounds(viewport.x.toDouble(),viewport.y.toDouble(),viewport.width*viewport.scale.toDouble(),(HEIGHT+previewHeight)*viewport.scale.toDouble())
         HudBackdrop.beginFrame(g)
         g.pose().pushMatrix()
         try {
@@ -138,9 +156,9 @@ object SkyglintHud {
                 if (client.gui.screen() != null) {
                     val mx = client.mouseHandler.xpos() / client.window.guiScale
                     val my = client.mouseHandler.ypos() / client.window.guiScale
-                    val left = viewport.x + entry.targetX * viewport.scale
-                    val top = viewport.y + previewHeight * viewport.scale
-                    if (mx >= left && mx < left + state.occupiedWidth * viewport.scale && my >= top && my < top + HEIGHT * viewport.scale) {
+                    val hitBounds = bounds.getValue(entry.element.id).transform(viewport.x.toDouble(),
+                        (viewport.y + previewHeight * viewport.scale).toDouble(), viewport.scale.toDouble())
+                    if (hitBounds.contains(mx, my)) {
                         val data = entry.element
                         val tip = listOfNotNull(data.title, data.value, data.subtitle, data.countdown?.caption(now),
                             data.progress?.takeIf { data.countdown == null }?.let { "${(it * 10000).roundToInt() / 100.0}%" }, data.badge?.let { "Tier $it" }).joinToString(" · ")
@@ -152,7 +170,12 @@ object SkyglintHud {
         entries.entries.removeIf { (id, entry) -> id !in observed && entry.state?.visible != true }
     }
 
-    private fun width(element: HudElement): Double = when (element.kind) {
+    private fun width(element: HudElement): Double {
+        val fallback = naturalWidth(element)
+        return element.sourceWidget?.let { UiWidgetRegistry.measureWidth(it, fallback) } ?: fallback
+    }
+
+    private fun naturalWidth(element: HudElement): Double = when (element.kind) {
         HudElementKind.MAIN -> ElementGeometry.mainWidth(HudText.width(element.prefix.orEmpty() + element.title),
             element.value?.let { HudText.width(" · $it") } ?: 0, element.icon != null)
         HudElementKind.PROGRESS, HudElementKind.TIMER, HudElementKind.ICON -> 30.0
@@ -171,7 +194,7 @@ object SkyglintHud {
             val strength = .08 + .13 * (.5 + .5 * sin(SkyglintClient.now() / 180.0))
             fill(g, width, 1f, alpha(accent, strength * state.visibility))
         }
-        if (entry.element.kind in setOf(HudElementKind.PROGRESS, HudElementKind.TIMER)) {
+        if (entry.element.kind in setOf(HudElementKind.PROGRESS, HudElementKind.TIMER) || entry.element.id == "skyblock") {
             HudBackdrop.contour(g, 0f, 0f, width, HEIGHT,
                 if (entry.element.progress != null) entry.fill.value.coerceIn(0.0, 1.0).toFloat() else null,
                 accent, state.visibility.toFloat())
@@ -257,19 +280,20 @@ object SkyglintHud {
                     }
                 }
                 HudElementKind.CAROUSEL -> {
-                    val left = (width - carouselWidth(data).toFloat()) / 2f + 14f
+                    val layout = CarouselGeometry.layout(width, HudText.width(data.title), carouselPageWidths(data))
                     // Measure the full carousel's ink once as one line: different page descenders
                     // must not move the right caption relative to its fixed heading and item.
                     val baseline = HudText.centeredOriginY(
-                        (listOf(data.title) + data.parts.map { it.text }).joinToString(" "), 0f, HEIGHT)
-                    HudText.draw(g, data.title, left, baseline, alpha(data.accent, opacity))
-                    val cropLeft = left + HudText.width(data.title) + 14f
-                    g.enableScissor(cropLeft.toInt(), 2, (width - 10).toInt().coerceAtLeast(cropLeft.toInt() + 1), 29)
+                        (listOf(data.title) + data.parts.map { it.text + it.tail }).joinToString(" "), 0f, HEIGHT)
+                    HudText.draw(g, data.title, layout.headingLeft, baseline, alpha(data.accent, opacity))
+                    g.enableScissor(layout.pageLeft.toInt(), 2, layout.pageRight.toInt().coerceAtLeast(layout.pageLeft.toInt() + 1), 29)
                     try {
                         entry.carouselLayers.forEach { crop ->
                             val part = data.parts.getOrNull(crop.key.toIntOrNull() ?: -1) ?: return@forEach
-                            drawInline(g, part, cropLeft + crop.offsetX.toFloat(), 1f,
-                                (normalized * crop.opacity).toFloat(), opacity * crop.opacity, baseline)
+                            val fitted = HudText.fit(part.text, layout.textBudget(part.icon != null) - HudText.width(part.tail))
+                            val group = layout.group(HudText.width(fitted) + HudText.width(part.tail), part.icon != null, crop.offsetX.toFloat())
+                            drawInline(g, part.copy(text = fitted), group.left, 1f,
+                                (normalized * crop.opacity).toFloat(), opacity * crop.opacity, baseline, part.icon != null)
                         }
                     } finally { g.disableScissor() }
                 }
@@ -301,6 +325,7 @@ object SkyglintHud {
             reference.startsWith("@candidate:") -> ElectionHeads.resolve(reference)
             reference == "@player" -> SkyglintClient.skyBlockIcon
             reference == "@notice" -> SkyglintClient.noticeIcon ?: native("minecraft:nether_star")
+            reference.startsWith("@loot:") -> SkyglintClient.noticeLootIcons[reference] ?: native("minecraft:nether_star")
             reference.startsWith("@notice:") -> SkyglintClient.noticeIcon ?: native(reference.removePrefix("@notice:"))
             reference.startsWith("@skill:") -> Skill.entries.firstOrNull { it.name == reference.removePrefix("@skill:") }?.let(SkillItems::icon)
             else -> native(reference)
@@ -319,24 +344,31 @@ object SkyglintHud {
     private fun stripPadding(element: HudElement): Float = if (iconOnlyStrip(element)) 7f else 14f
     private fun stripGap(element: HudElement): Float = if (iconOnlyStrip(element)) 8f else 14f
     private fun inlineWidth(part: HudInlinePart, textScale: Double): Double =
-        16.0 + if (part.text.isEmpty()) 0.0 else 5.0 + HudText.width(part.text) * textScale
+        16.0 + if (part.text.isEmpty() && part.tail.isEmpty()) 0.0 else 5.0 + (HudText.width(part.text) + HudText.width(part.tail)) * textScale
     private fun stripWidth(element: HudElement): Double = stripPadding(element) * 2.0 +
         (if (element.title.isEmpty()) 0.0 else HudText.width(element.title) * .82 + 14.0) +
         element.parts.sumOf { inlineWidth(it, .82) } + stripGap(element) * (element.parts.size - 1).coerceAtLeast(0)
-    private fun carouselWidth(element: HudElement): Double = 28.0 + HudText.width(element.title) + 14.0 +
-        (element.parts.maxOfOrNull { inlineWidth(it, 1.0) } ?: 0.0)
+    private fun carouselPageWidths(element: HudElement): List<Float> = element.parts.map {
+        CarouselGeometry.contentWidth(HudText.width(it.text) + HudText.width(it.tail), it.icon != null)
+    }
+    private fun carouselWidth(element: HudElement): Double =
+        CarouselGeometry.width(HudText.width(element.title), carouselPageWidths(element))
     private fun drawInline(g: GuiGraphicsExtractor, part: HudInlinePart, left: Float, textScale: Float, scale: Float,
-                           opacity: Double, textOriginY: Float? = null) {
-        val sprite = resolveSprite(part.icon)
-        if (sprite != null) scaledSprite(g, sprite, left + 8f, 20f, scale, opacity.toFloat())
-        else {
-            val item = resolveIcon(part.icon, Minecraft.getInstance())
-            if (item != null) scaledItem(g, item, left + 8f, 16f, scale)
-            else smallText(g, "?", left + 8f, textOriginY ?: HudText.centeredOriginY("?", 0f, HEIGHT, textScale), alpha(part.accent, opacity), textScale)
+                           opacity: Double, textOriginY: Float? = null, showIcon: Boolean = true) {
+        if (showIcon) {
+            val sprite = resolveSprite(part.icon)
+            if (sprite != null) scaledSprite(g, sprite, left + 8f, 20f, scale, opacity.toFloat())
+            else {
+                val item = resolveIcon(part.icon, Minecraft.getInstance())
+                if (item != null) scaledItem(g, item, left + 8f, 16f, scale)
+                else smallText(g, "?", left + 8f, textOriginY ?: HudText.centeredOriginY("?", 0f, HEIGHT, textScale), alpha(part.accent, opacity), textScale)
+            }
         }
-        if (part.icon == "@sack_disabled") disabledSackMark(g, left + 8f, scale, opacity)
-        if (part.text.isNotEmpty()) text(g, part.text, left + 21f, textOriginY ?: HudText.centeredOriginY(part.text, 0f, HEIGHT, textScale),
+        if (showIcon && part.icon == "@sack_disabled") disabledSackMark(g, left + 8f, scale, opacity)
+        if (part.text.isNotEmpty()) text(g, part.text, left + (if (showIcon) 21f else 0f), textOriginY ?: HudText.centeredOriginY(part.text, 0f, HEIGHT, textScale),
             alpha(if (part.colored) part.accent else WHITE, opacity), textScale)
+        if (part.tail.isNotEmpty()) text(g, part.tail, left + (if (showIcon) 21f else 0f) + HudText.width(part.text) * textScale,
+            textOriginY ?: HudText.centeredOriginY(part.text + part.tail, 0f, HEIGHT, textScale), alpha(0xFFB0BAC8.toInt(), opacity), textScale)
     }
     /** A crossed sack denotes a disabled toggle, independently of any observed bait count. */
     private fun disabledSackMark(g: GuiGraphicsExtractor, centerX: Float, scale: Float, opacity: Double) {
@@ -355,7 +387,7 @@ object SkyglintHud {
         g.pose().pushMatrix()
         try {
             g.pose().translate(centerX, centerY); g.pose().scale(size / 16 * scale, size / 16 * scale)
-            g.pose().translate(-8f, -8f); g.item(stack, 0, 0)
+            g.pose().translate(-8f, -8f); HudItemRenderer.item(g, stack, 0, 0)
         } finally { g.pose().popMatrix() }
     }
     private fun scaledSprite(g: GuiGraphicsExtractor, sprite: Identifier, centerX: Float, size: Float,
@@ -370,8 +402,7 @@ object SkyglintHud {
     }
     private fun surface(g: GuiGraphicsExtractor, width: Float, accent: Int, opacity: Float) {
         HudBackdrop.capsule(g, 0f, 0f, width, HEIGHT, 15f, opacity)
-        fill(g, width, 1f, alpha(0xFF10161F.toInt(), .40 * opacity))
-        fill(g, width, 1f, alpha(accent, .065 * opacity))
+        fill(g, width, 1f, alpha(0xFF101112.toInt(), .26 * opacity))
     }
     private fun fill(g: GuiGraphicsExtractor, width: Float, fraction: Float, color: Int) {
         val radius = min(15f, width / 2)

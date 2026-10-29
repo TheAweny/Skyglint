@@ -18,6 +18,33 @@ data class ModConfig(
     val captureChat: Boolean = false,
     val detailedDungeonHud: Boolean = false,
     val checkUpdates: Boolean = true,
+    /** -1..1 across available horizontal travel; zero preserves the centered row. */
+    val hudOffsetX: Double = 0.0,
+    /** 0..1 across available vertical travel; null preserves the legacy topOffset. */
+    val hudPositionY: Double? = null,
+    val showWelcome: Boolean = true,
+    val showEventReminders: Boolean = true,
+    val showEventStarts: Boolean = true,
+    val showSkillLevelUps: Boolean = true,
+    val showPetLevelUps: Boolean = true,
+    val showSkyBlockLevelUps: Boolean = true,
+    val showGardenVisitors: Boolean = true,
+    val showGardenPests: Boolean = true,
+    val showCropMilestones: Boolean = true,
+    val showMiningTimers: Boolean = true,
+    val showFuelWarnings: Boolean = true,
+    val showPetIntroduction: Boolean = true,
+    val showFishingBait: Boolean = true,
+    val showSackWarning: Boolean = true,
+    val rotationSeconds: Int = 6,
+    val helperLimit: Int = 7,
+    val showCookieExpiry: Boolean = true,
+    val showGodPotionExpiry: Boolean = true,
+    val showJerryDefense: Boolean = true,
+    val showReindrake: Boolean = true,
+    val showCookieWarning: Boolean = true,
+    val showGodPotionWarning: Boolean = true,
+    val showJerryResults: Boolean = true,
 ) {
     /** Design-to-screen-pixel scale; the renderer must compensate for Minecraft's GUI scaling. */
     val renderScale: Double get() = hudScale * PROTOTYPE_BASE_SCALE
@@ -28,6 +55,10 @@ data class ModConfig(
             skillTimeoutSeconds = skillTimeoutSeconds.coerceIn(10, 120),
             hudScale = if (hudScale.isFinite()) hudScale.coerceIn(1.0 / 3.0, 2.0) else 1.0,
             topOffset = topOffset.coerceIn(0, 200),
+            hudOffsetX = if (hudOffsetX.isFinite()) hudOffsetX.coerceIn(-1.0, 1.0) else 0.0,
+            hudPositionY = hudPositionY?.takeIf { it.isFinite() }?.coerceIn(0.0, 1.0),
+            rotationSeconds = rotationSeconds.coerceIn(4, 15),
+            helperLimit = helperLimit.coerceIn(1, 7),
             rewardMode = if (rewardMode.equals("filtered", true)) "filtered" else "all",
             rewardOverrides = Collections.unmodifiableMap(rewardOverrides.entries.asSequence().mapNotNull { (name, value) ->
                 val normalized = RewardRulePolicy.normalizeItemName(name)

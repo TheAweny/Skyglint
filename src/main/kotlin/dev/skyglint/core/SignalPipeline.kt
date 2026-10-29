@@ -110,8 +110,8 @@ class ModuleRegistry(var onFailure: (ModuleFailure) -> Unit = {}) {
             .register(SkillSignalModule)
             .register(ProgressionSignalModule)
             .register(PetSignalModule)
-            .register(dev.skyglint.features.PetLevelUpModule())
-            .register(dev.skyglint.features.SkillLevelUpModule())
+            .register(PetLevelConfirmationParser)
+            .register(SkillLevelConfirmationParser)
     }
 }
 

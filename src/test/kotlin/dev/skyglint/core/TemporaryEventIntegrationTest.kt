@@ -4,10 +4,72 @@ import dev.skyglint.features.EventScheduleModule
 import dev.skyglint.features.mining.MiningEventModule
 import dev.skyglint.ui.presentation.HudComposition
 import dev.skyglint.ui.presentation.HudElementKind
+import dev.skyglint.ui.presentation.visibleContentKey
 import java.util.UUID
 import kotlin.test.*
 
 class TemporaryEventIntegrationTest {
+    @Test fun `multi day active event has a compact brief caption and does not return after island calendar refresh`() {
+        for ((observed, canonical) in listOf("The great Spook" to "The Great Spook", "Year of the seal" to "Year of the Seal")) {
+            assertBriefMultiDayEvent(observed, canonical)
+        }
+    }
+
+    private fun assertBriefMultiDayEvent(observed: String, canonical: String) {
+        val policy = EventNoticePolicy()
+        val core = CoreController(eventNoticePolicy = policy).apply {
+            modules.register(EventScheduleModule())
+            enterSkyBlock("island-one", 0)
+        }
+        val composition = HudComposition()
+        core.ingest(NormalizedSignal.TabSnapshot(listOf("Event: $observed", "Ends In: 2d 3h")), 0)
+        val first = composition.compose(core.snapshot(0), 0).single()
+        assertEquals("2d 3h left", first.value)
+        assertEquals(canonical, core.snapshot(0).scheduledEvents.single().name)
+        assertTrue(first.liveValue)
+        val ticking = composition.compose(core.snapshot(1_000), 1_000).single()
+        assertEquals(first.identity, ticking.identity)
+        assertEquals(first.visibleContentKey(0), ticking.visibleContentKey(0))
+        assertEquals(183_600_000, core.snapshot(0).activeNotice!!.countdown!!.deadline)
+        assertNull(core.snapshot(4_000).activeNotice)
+        assertTrue(composition.compose(core.snapshot(4_000), 4_000).isEmpty())
+
+        // The calendar can advertise the next occurrence before tab has re-established this one.
+        core.enterSkyBlock("island-two", 10_000)
+        core.ingest(NormalizedSignal.MenuSnapshot("Calendar and Events", listOf(
+            MenuItemSnapshot(1, canonical, listOf("Starts in: 3d", "Event lasts for 2d!")),
+        )), 10_000)
+        core.ingest(NormalizedSignal.TabSnapshot(listOf("Event: $canonical", "Ends In: 2d 2h 59m 50s")), 10_000)
+        assertNull(core.snapshot(10_001).activeNotice)
+        assertTrue(composition.compose(core.snapshot(10_001), 10_001).isEmpty())
+        assertEquals(183_600_000, core.snapshot(10_001).scheduledEvents.single().endsAt)
+    }
+
+    @Test fun `a known running event ignores future calendar cards until confirmed end permits next occurrence`() {
+        val policy = EventNoticePolicy()
+        val active = ScheduledEvent("Year of the Seal", null, 0, true, "tab", 30_000, endsAt = 183_600_000)
+        assertNotNull(policy.observe(active, 0, explicitActive = true))
+        val upcoming = ScheduledEvent("Year of the Seal", 259_200_000, 10_000, false, "calendar", 40_000)
+        assertNull(policy.observe(upcoming, 10_000))
+        assertNull(policy.observe(active.copy(observedAt = 10_001, expiresAt = 40_001), 10_001, explicitActive = true))
+        policy.confirmedEnd("Year of the Seal", 20_000)
+        val later = upcoming.copy(startsAt = 30_000, observedAt = 20_001, expiresAt = 50_001)
+        assertEquals("Starts in 0:10", policy.observe(later, 20_001)?.title)
+        assertEquals("Event started", policy.observe(active.copy(observedAt = 30_000, expiresAt = 60_000,
+            endsAt = 213_600_000), 30_000, explicitActive = true)?.title)
+    }
+
+    @Test fun `unknown bossbar with a long raw clock is preserved rather than guessed as a global event`() {
+        val core = CoreController().apply { enterSkyBlock("boss", 0) }
+        val id = UUID(0, 99)
+        core.updateBoss(id, "Unknown future event 3060:00", .5f, now = 0)
+        val snapshot = core.snapshot(5_000)
+        assertEquals(id, snapshot.bosses.single().id)
+        assertEquals("Unknown future event 3060:00", HudComposition().compose(snapshot, 5_000).single().title)
+        assertTrue(snapshot.scheduledEvents.isEmpty())
+        assertNull(snapshot.activeNotice)
+    }
+
     private var now = 0L
     private fun core() = CoreController().apply {
         modules.register(MiningEventModule { now })

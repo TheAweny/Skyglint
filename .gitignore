@@ -19,6 +19,7 @@ local.properties
 /docs/*
 !/docs/DEVELOPMENT.md
 !/docs/UPDATES.md
+!/docs/STRUCTURE-AUDIT.md
 *.log
 .env
 .env.*

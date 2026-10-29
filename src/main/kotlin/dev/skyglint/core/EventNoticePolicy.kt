@@ -58,6 +58,10 @@ class EventNoticePolicy {
                     CountdownSnapshot(it, (event.durationMillis ?: (it - now)).coerceAtLeast(it - now))
                 })
         }
+        // Calendar may already describe the next occurrence while this connection's current
+        // observed event is still running. Island transfers clear source snapshots, not this
+        // policy: that future card must not re-arm the same active login notice on every island.
+        if (state.activeReported && state.endsAt?.let { now < it } == true) return null
         val deadline = event.startsAt ?: return null
         val remaining = deadline - now
         // A later server schedule following confirmed activity is evidence of another occurrence.
@@ -76,8 +80,7 @@ class EventNoticePolicy {
         if (remaining !in 1..REMINDER_WINDOW || state.reminderShown || state.activeReported) return null
         state.reminderShown = true
         val seconds = (remaining + 999) / 1_000
-        val duration = if (seconds % 60 == 0L) "${seconds / 60} min"
-            else "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}"
+        val duration = if (seconds % 60 == 0L) "${seconds / 60} min" else DurationText.countdown(remaining)
         return NoticeRequest("skyglint.event_soon:$key:${state.generation}", "Starts in $duration", event.name,
             priority = 35)
     }

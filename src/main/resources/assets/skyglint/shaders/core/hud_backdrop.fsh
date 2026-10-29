@@ -29,6 +29,6 @@ void main() {
     }
     // One soft physical-pixel edge replaces staircase CPU row outlines. Tint belongs to the UI layer.
     float edge = 1.0 - smoothstep(0.35, 1.0, abs(distanceToEdge + 0.7));
-    vec3 surface = mix(blurred / 4096.0, vec3(0.88, 0.94, 1.0), edge * 0.18);
+    vec3 surface = mix(blurred / 4096.0, vec3(0.96), edge * 0.18);
     fragColor = vec4(surface, coverage * shapeParameters.a);
 }

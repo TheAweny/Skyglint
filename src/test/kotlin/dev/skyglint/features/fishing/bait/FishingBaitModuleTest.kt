@@ -13,7 +13,7 @@ class FishingBaitModuleTest {
         NormalizedSignal.FishingBaitSnapshot(item, holdingRod)
     private fun List<CoreEvent>.widget() = filterIsInstance<CoreEvent.WidgetObserved>().single().widget
 
-    @Test fun `selected preview is an item helper with numbers and colors only when low or explicitly empty`() {
+    @Test fun `selected preview always carries the exact count while colors apply only when low or explicitly empty`() {
         for (count in listOf("16", "1", "0")) {
             val events = module.parse(snapshot(preview(count)))
             assertEquals(1, events.size)
@@ -35,7 +35,7 @@ class FishingBaitModuleTest {
         }
         for (count in listOf("17", "10,000")) {
             val metric = module.parse(snapshot(preview(count))).widget().presentation!!.metrics.single()
-            assertEquals("", metric.value)
+            assertEquals(count.replace(",", ""), metric.value)
             assertNull(metric.accent)
             assertTrue(metric.detail!!.contains(count.replace(",", "")))
         }
@@ -52,6 +52,30 @@ class FishingBaitModuleTest {
             assertTrue(module.parse(signal).isEmpty())
         }
         assertEquals(listOf(CoreEvent.WidgetRemoved(FishingBaitModule.WIDGET_ID)), module.parse(snapshot(ordinary, false)))
+    }
+
+    @Test fun `healthy count changes and refills retain exact server totals without restarting name introduction`() {
+        val core = CoreController(modules = ModuleRegistry().register(module))
+        core.enterSkyBlock("healthy-count", now)
+        core.ingest(snapshot(preview("10,000")), now)
+        fun current() = core.snapshot(now).widgets.single().presentation!!.metrics.single()
+        assertEquals("10000", current().value)
+        assertEquals(2_000L, current().expandedUntil)
+        now = 1_000
+        core.ingest(snapshot(preview("9,999")), now)
+        assertEquals("9999", current().value)
+        assertEquals(2_000L, current().expandedUntil)
+        now = 2_000
+        core.ingest(snapshot(preview("16")), now)
+        assertNotNull(current().accent)
+        now = 2_500
+        core.ingest(snapshot(preview("12,345")), now)
+        assertEquals("12345", current().value)
+        assertNull(current().accent)
+        assertEquals(2_000L, current().expandedUntil)
+        assertNull(core.snapshot(now).activeNotice)
+        assertNull(core.snapshot(now).progression)
+        assertTrue(core.snapshot(now + 3_000).widgets.isEmpty())
     }
 
     @Test fun `source marker slot category identity and exact integer all required`() {
@@ -93,11 +117,11 @@ class FishingBaitModuleTest {
             assertTrue(core.snapshot(now).widgets.isEmpty())
         }
         core.ingest(snapshot(preview("17")), ++now)
-        assertEquals("", core.snapshot(now).widgets.single().presentation!!.metrics.single().value)
+        assertEquals("17", core.snapshot(now).widgets.single().presentation!!.metrics.single().value)
         core.ingest(snapshot(preview("50", id = "HOT_BAIT", name = "Hot Bait", type = "UNCOMMON BAIT")), ++now)
         val switched = core.snapshot(now).widgets.single().presentation!!.metrics.single()
         assertEquals("Hot Bait", switched.label)
-        assertEquals("", switched.value)
+        assertEquals("50", switched.value)
         assertNull(switched.accent)
         core.ingest(snapshot(preview("0")), ++now)
         core.leaveSkyBlock()

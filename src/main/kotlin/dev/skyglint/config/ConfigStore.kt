@@ -105,6 +105,31 @@ class ConfigStore(val path: Path) {
             captureChat = if (schema < 3) false else boolean(json, "captureChat", defaults.captureChat),
             detailedDungeonHud = boolean(json, "detailedDungeonHud", defaults.detailedDungeonHud),
             checkUpdates = boolean(json, "checkUpdates", defaults.checkUpdates),
+            hudOffsetX = number(json, "hudOffsetX", defaults.hudOffsetX),
+            hudPositionY = nullableNumber(json, "hudPositionY", defaults.hudPositionY),
+            showWelcome = boolean(json, "showWelcome", defaults.showWelcome),
+            showEventReminders = boolean(json, "showEventReminders", defaults.showEventReminders),
+            showEventStarts = boolean(json, "showEventStarts", defaults.showEventStarts),
+            showSkillLevelUps = boolean(json, "showSkillLevelUps", defaults.showSkillLevelUps),
+            showPetLevelUps = boolean(json, "showPetLevelUps", defaults.showPetLevelUps),
+            showSkyBlockLevelUps = boolean(json, "showSkyBlockLevelUps", defaults.showSkyBlockLevelUps),
+            showGardenVisitors = boolean(json, "showGardenVisitors", defaults.showGardenVisitors),
+            showGardenPests = boolean(json, "showGardenPests", defaults.showGardenPests),
+            showCropMilestones = boolean(json, "showCropMilestones", defaults.showCropMilestones),
+            showMiningTimers = boolean(json, "showMiningTimers", defaults.showMiningTimers),
+            showFuelWarnings = boolean(json, "showFuelWarnings", defaults.showFuelWarnings),
+            showPetIntroduction = boolean(json, "showPetIntroduction", defaults.showPetIntroduction),
+            showFishingBait = boolean(json, "showFishingBait", defaults.showFishingBait),
+            showSackWarning = boolean(json, "showSackWarning", defaults.showSackWarning),
+            rotationSeconds = integer(json, "rotationSeconds", defaults.rotationSeconds),
+            helperLimit = integer(json, "helperLimit", defaults.helperLimit),
+            showCookieExpiry = boolean(json, "showCookieExpiry", defaults.showCookieExpiry),
+            showGodPotionExpiry = boolean(json, "showGodPotionExpiry", defaults.showGodPotionExpiry),
+            showJerryDefense = boolean(json, "showJerryDefense", defaults.showJerryDefense),
+            showReindrake = boolean(json, "showReindrake", defaults.showReindrake),
+            showCookieWarning = boolean(json, "showCookieWarning", defaults.showCookieWarning),
+            showGodPotionWarning = boolean(json, "showGodPotionWarning", defaults.showGodPotionWarning),
+            showJerryResults = boolean(json, "showJerryResults", defaults.showJerryResults),
         ) to (schema != ModConfig.CURRENT_SCHEMA)
     }
 
@@ -138,5 +163,12 @@ class ConfigStore(val path: Path) {
         val value = json.get(key) ?: return fallback
         require(value.isJsonPrimitive && value.asJsonPrimitive.isNumber) { "$key must be an integer" }
         return value.asBigDecimal.intValueExact()
+    }
+
+    private fun nullableNumber(json: JsonObject, key: String, fallback: Double?): Double? {
+        val value = json.get(key) ?: return fallback
+        if (value.isJsonNull) return null
+        require(value.isJsonPrimitive && value.asJsonPrimitive.isNumber) { "$key must be numeric or null" }
+        return value.asDouble
     }
 }

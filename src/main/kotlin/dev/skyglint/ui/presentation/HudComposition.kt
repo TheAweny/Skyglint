@@ -3,7 +3,8 @@ package dev.skyglint.ui.presentation
 import dev.skyglint.core.*
 
 enum class HudElementKind { MAIN, PROGRESS, COUNTER, TIMER, STRIP, CAROUSEL, ICON }
-data class HudInlinePart(val text: String, val icon: String?, val accent: Int, val colored: Boolean = false)
+data class HudInlinePart(val text: String, val icon: String?, val accent: Int, val colored: Boolean = false,
+                         val tail: String = "")
 
 data class HudElement(
     val id: String, val kind: HudElementKind, val title: String, val icon: String?, val accent: Int,
@@ -25,11 +26,22 @@ class HudComposition {
     private val rotation = SingleRowRotation()
     private var dungeonEntry: String? = null
     private var dungeonEntryAt = 0L
-    fun compose(snapshot: HudSnapshot, now: Long, showPets: Boolean = true, detailedDungeonHud: Boolean = false): List<HudElement> {
+    fun compose(snapshot: HudSnapshot, now: Long, showPets: Boolean = true, detailedDungeonHud: Boolean = false): List<HudElement> =
+        compose(snapshot, now, HudPreferences(showPets = showPets, detailedDungeonHud = detailedDungeonHud))
+
+    fun compose(snapshot: HudSnapshot, now: Long, preferences: HudPreferences): List<HudElement> {
         if (!snapshot.active) return emptyList()
-        val notice = snapshot.activeNotice
+        rotation.dwellMillis = preferences.rotationSeconds.coerceIn(4, 15) * 1_000L
+        val widgets = visibleWidgets(snapshot.widgets.filter { it.expiresAt?.let { expiry -> now < expiry } != false }, preferences)
+        // The queue normally retires disabled introductions. Isolated snapshots/preview callers
+        // must also avoid rendering an introduction for a metric they no longer represent.
+        val notice = snapshot.activeNotice?.takeUnless { value ->
+            !preferences.showMiningTimers && value.target?.let {
+                it.widgetId.startsWith("skyglint.mining.") && it.metricId.startsWith("event:")
+            } == true
+        }
         if (notice != null) {
-            val targetMetric = notice.target?.let { target -> snapshot.widgets.firstOrNull { it.id == target.widgetId }
+            val targetMetric = notice.target?.let { target -> widgets.firstOrNull { it.id == target.widgetId }
                 ?.presentation?.metrics?.firstOrNull { it.id == target.metricId } }
             val currentTimer = targetMetric?.countdown
                 ?: snapshot.scheduledEvents.firstOrNull { it.active && it.name == notice.detail }
@@ -43,7 +55,6 @@ class HudComposition {
             val title = if (now - it.observedAt < 1_600) "SkyBlock level up!" else it.newLevel?.let { level -> "Level $level" } ?: "SkyBlock level up!"
             return listOf(HudElement("main", HudElementKind.MAIN, title, "@player", CYAN, identity = "sb:${it.newLevel}"))
         }
-        val widgets = snapshot.widgets.filter { it.expiresAt?.let { expiry -> now < expiry } != false }
         val contextual = widgets.filter { it.presentation != null }
         val layoutContexts = contextual.filterNot { it.id in setOf("skyglint.mining.drill_fuel.current", "skyglint.currencies.current",
             "skyglint.server_closing.current", "skyglint.fishing.bait.current") }
@@ -55,18 +66,20 @@ class HudComposition {
             .filter { (widget, metric) -> !metric.referenceOnly && metric.group != "currency" &&
                 metric.priority > 0 && metric.id !in setOf("tier", "next_visitor", "garden_level") &&
                 widget.presentation?.role !in setOf(WidgetRole.INLINE, WidgetRole.PROGRESSION) &&
-                (!dungeon || detailedDungeonHud || !widget.id.startsWith("skyglint.dungeon.") || metric.id in setOf("score", "secrets")) }
+                (!dungeon || preferences.detailedDungeonHud || !widget.id.startsWith("skyglint.dungeon.") || metric.id in setOf("score", "secrets")) }
             .sortedByDescending { it.second.priority }.toMutableList()
         if (dungeon && eligibleMetrics.none { it.second.id in setOf("score", "forecast") }) {
             val owner = contextual.first { it.id.startsWith("skyglint.dungeon.") }
             eligibleMetrics += owner to WidgetMetric("score", "Score · Awaiting confirmed data", "—",
                 "minecraft:nether_star", 100, group = "dungeon:run")
         }
-        val blocks = MetricGrouping.select(eligibleMetrics)
+        val blocks = MetricGrouping.select(eligibleMetrics, preferences.helperLimit.coerceIn(1, 7))
         val metrics = blocks.flatMap { it.metrics }
         // A capped-out metric cannot claim a bossbar that the HUD no longer represents.
         val replacedBossIds = metrics.flatMapTo(mutableSetOf()) { it.second.replacedBossIds }
-        widgets.filter { it.presentation?.metrics.orEmpty().none { metric -> metric.replacedBossIds.isNotEmpty() } }
+        val selectedMetricOwners = metrics.mapTo(mutableSetOf()) { it.first.id }
+        widgets.filter { it.presentation?.metrics.orEmpty().none { metric -> metric.replacedBossIds.isNotEmpty() } &&
+            (it.presentation?.metrics.orEmpty().isEmpty() || it.id in selectedMetricOwners || it.presentation?.role in PRIMARY_ROLES) }
             .forEach { replacedBossIds += it.replacedBossIds }
         val remainingBosses = snapshot.bosses.filter { it.id !in replacedBossIds }
         val run = contextual.firstOrNull { it.id == "skyglint.dungeon.run" }
@@ -109,8 +122,12 @@ class HudComposition {
             when (val view = snapshot.progression) {
                 is ProgressionView.SkillView -> add(HudElement("skill", HudElementKind.PROGRESS, view.skill.displayName,
                     "@skill:${view.skill.name}", CYAN, view.progress?.fraction, identity = "${view.skill}:${view.level}"))
-                is ProgressionView.SkyBlock -> if (layoutContexts.isEmpty()) add(HudElement("skyblock", HudElementKind.PROGRESS,
-                    "SkyBlock", "@player", CYAN, view.progress?.fraction, identity = "sb:${view.level}"))
+                is ProgressionView.SkyBlock -> if (layoutContexts.isEmpty()) {
+                    val expanded = main == null && blocks.isEmpty()
+                    add(HudElement("skyblock", if (expanded) HudElementKind.MAIN else HudElementKind.PROGRESS,
+                        if (expanded) "SkyBlock" + (view.level?.let { " · $it" } ?: "") else "SkyBlock",
+                        "@player", CYAN, view.progress?.fraction, identity = "sb:${view.level}"))
+                }
                 null -> Unit
             }
             contextual.filter { it.presentation?.role == WidgetRole.PROGRESSION }.take(2).forEach { widget ->
@@ -123,13 +140,14 @@ class HudComposition {
                 if (block.grouped && (block.metrics.size > 1 || block.metrics.single().second.format != WidgetMetricFormat.ITEM)) {
                     val parts = block.metrics.map { (widget, metric) ->
                         val score = if (metric.id == "score") RankVisuals.score(metric.value) else null
-                        HudInlinePart(compact(score?.number ?: metric.value), score?.icon ?: metric.icon,
+                        HudInlinePart(if (metric.format == WidgetMetricFormat.ITEM) metric.value else compact(score?.number ?: metric.value), score?.icon ?: metric.icon,
                             metric.accent ?: if (score != null) rankColor(metric.value.substringAfterLast(" · ")) else ContextWidgets.accent(widget.id),
                             colored = metric.accent != null)
                     }
                     add(HudElement(block.id, HudElementKind.STRIP, "", null,
                         block.metrics.first().second.accent ?: ContextWidgets.accent(block.metrics.first().first.id),
-                        parts = parts, subtitle = block.metrics.joinToString(" · ") { (_, metric) ->
+                        parts = parts, liveValue = block.metrics.any { it.second.format == WidgetMetricFormat.ITEM },
+                        subtitle = block.metrics.joinToString(" · ") { (_, metric) ->
                             metric.label + metric.value.takeIf { it.isNotEmpty() }?.let { ": $it" }.orEmpty() +
                                 metric.detail?.let { " ($it)" }.orEmpty() }))
                     return@forEach
@@ -162,7 +180,7 @@ class HudComposition {
                     },
                     progress = timer?.fraction(now)?.takeUnless { remainingText },
                     value = if (remainingText) timer.caption(now) else if (timer != null) "X2".takeIf { metric.id == "event:double_powder" }
-                        else compact(score?.number ?: metric.value).takeUnless { item && it.isEmpty() },
+                        else (if (item) metric.value else compact(score?.number ?: metric.value)).takeUnless { item && it.isEmpty() },
                     subtitle = if (score != null) listOfNotNull(metric.value, metric.detail).joinToString(" · ") else if (metric.id == "visitors")
                         listOfNotNull(widget.presentation?.metrics?.firstOrNull { it.id == "next_visitor" }?.value, metric.detail)
                             .joinToString(" · ").ifEmpty { null } else metric.detail,
@@ -170,8 +188,8 @@ class HudComposition {
                     pulse = fuel && fraction != null && fraction < .05,
                     coloredText = metric.value.takeIf { fuel || metric.accent != null }, liveValue = fuel || remainingText || item))
             }
-            if (showPets && !dungeon && !election) snapshot.pet?.let { pet ->
-                val intro = snapshot.petTransition?.let { now >= it.observedAt && now - it.observedAt < 3_000 } == true
+            if (preferences.showPets && !dungeon && !election) snapshot.pet?.let { pet ->
+                val intro = preferences.showPetIntroduction && snapshot.petTransition?.let { now >= it.observedAt && now - it.observedAt < 3_000 } == true
                 add(HudElement("pet", if (intro) HudElementKind.MAIN else HudElementKind.PROGRESS,
                     if (intro) pet.name + (pet.level?.let { " · Lv. $it" } ?: "") else pet.name,
                     "@pet", PET, pet.progress?.fraction, identity = "${pet.name}:${pet.level}:${pet.skin}",
@@ -180,7 +198,49 @@ class HudComposition {
         }
     }
 
+    /** Filter before grouping and boss claims, retaining the original observation snapshots. */
+    private fun visibleWidgets(widgets: List<ModuleWidget>, preferences: HudPreferences): List<ModuleWidget> = widgets.mapNotNull { widget ->
+        val hidden = when {
+            widget.id.startsWith("skyglint.garden.visitors") -> !preferences.showGardenVisitors
+            widget.id.startsWith("skyglint.garden.pests") -> !preferences.showGardenPests
+            widget.id.startsWith("skyglint.garden.milestone") -> !preferences.showCropMilestones
+            widget.id == "skyglint.mining.drill_fuel.current" -> !preferences.showFuelWarnings
+            widget.id == "skyglint.winter.defense" || widget.id == "skyglint.winter.defense.counters" -> !preferences.showJerryDefense
+            widget.id.startsWith("skyglint.winter.reindrake:") -> !preferences.showReindrake
+            else -> false
+        }
+        if (hidden) return@mapNotNull null
+        val presentation = widget.presentation ?: return@mapNotNull widget
+        val metrics = presentation.metrics.filterNot { metric -> when {
+            widget.id.startsWith("skyglint.mining.") && metric.id.startsWith("event:") -> !preferences.showMiningTimers
+            widget.id == "skyglint.fishing.bait.current" && metric.id == "bait_selected" -> !preferences.showFishingBait
+            widget.id == "skyglint.fishing.bait.current" && metric.id == "bait_sack_disabled" -> !preferences.showSackWarning
+            else -> false
+        } }
+        if (metrics.size == presentation.metrics.size) return@mapNotNull widget
+        if (metrics.isEmpty() && presentation.role !in PRIMARY_ROLES) return@mapNotNull null
+        // A legacy widget-level UUID set cannot be attributed to its surviving metrics.
+        widget.copy(presentation = presentation.copy(metrics = metrics), replacedBossIds = emptySet())
+    }
+
     private fun notice(notice: TransientNotice, now: Long, targetMetric: WidgetMetric? = null): HudElement {
+        if (notice.loot.size > 1) {
+            val age = now - notice.observedAt + notice.presentationOffsetMillis
+            return HudElement("main", HudElementKind.CAROUSEL,
+                if (notice.loot.first().delivery == RewardDelivery.CLAIMABLE) "Available" else "Received",
+                null, 0xFFB0BAC8.toInt(), identity = "${notice.id}:${notice.observedAt}",
+                parts = notice.loot.mapIndexed { index, reward ->
+                    val tail = buildList {
+                        reward.amount?.takeIf { it > 1 }?.let { add("×" + String.format(java.util.Locale.ROOT, "%,d", it)) }
+                        reward.magicFind?.let { add("+$it% MF") }
+                        if (reward.fishingCategory == FishingLootCategory.JUNK) add("Junk")
+                        reward.trophyGrade?.let { add(it.name.lowercase().replaceFirstChar(Char::uppercase)) }
+                    }.joinToString(" · ")
+                    HudInlinePart(reward.itemName, "@loot:$index", RarityPalette.color(reward.rarity) ?: 0xFFF1F5FA.toInt(),
+                        colored = reward.rarity != null, tail = tail.takeIf { it.isNotEmpty() }?.let { " · $it" }.orEmpty())
+                }, carouselIndex = (age.coerceAtLeast(0) / 1_800L).toInt().coerceAtMost(notice.loot.lastIndex),
+                subtitle = notice.loot.joinToString(" · ") { it.itemName + (it.amount?.let { amount -> " ×$amount" } ?: "") })
+        }
         if (notice.id.startsWith("skyglint.welcome:") && notice.pages.isNotEmpty()) {
             return HudElement("main", HudElementKind.CAROUSEL, "Welcome to SkyBlock", null, CYAN,
                 identity = "${notice.id}:${notice.observedAt}",
@@ -251,8 +311,10 @@ class HudComposition {
             identity = "${notice.id}:${notice.observedAt}",
             subtitle = if (notice.reward != null) notice.reward.sourceTitle else
                 listOfNotNull(notice.title, notice.detail).joinToString(" · ").takeIf { notice.compactCaption != null },
-            coloredText = if (notice.id.startsWith("skyglint.mining.drill_fuel.")) notice.title else notice.item?.itemName?.takeUnless { staged },
-            prefix = "Received · ".takeIf { notice.item?.itemName != null && !staged && !event && notice.pages.isEmpty() },
+            coloredText = if (notice.id.startsWith("skyglint.mining.drill_fuel.")) notice.title else
+                notice.item?.itemName?.takeUnless { staged || (notice.reward?.delivery == RewardDelivery.CLAIMABLE && notice.rarity == null) },
+            prefix = (if (notice.reward?.delivery == RewardDelivery.CLAIMABLE) "Available · " else "Received · ")
+                .takeIf { notice.item?.itemName != null && !staged && !event && notice.pages.isEmpty() },
             verticalTransition = pages.isNotEmpty() && (!sameIntroduction || pages.size > 1))
     }
     private fun boss(boss: BossBarState): HudElement {

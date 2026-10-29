@@ -20,6 +20,8 @@ final class WorldSmoke {
     private boolean prepared;
     private int ticks;
     private int phase;
+    private final WinterSmoke winterProof = new WinterSmoke();
+    private final SettingsWorkspaceSmoke settingsProof = new SettingsWorkspaceSmoke();
     private int totalWait;
     private int sequenceTicks = -1;
     private int eventTicks = -1;
@@ -27,14 +29,17 @@ final class WorldSmoke {
     private int contextPhase;
     private long confirmationStartedAt = -1;
     private int confirmationCapture;
+    private int headProofTicks = -1;
     private long slayerPetStartedAt = -1;
     private int slayerPetCapture;
+    private static Float welcomeWidth;
+    private static Float welcomeHeadingLeft;
     private long fishingStartedAt = -1;
     private int fishingCapture;
     private static final long[] FISHING_AT = {1200, 2400, 4400, 7400, 10400, 13400, 16400, 19000, 21400, 25400, 29400, 33400, 37400};
     private static final String[] FISHING_LABELS = {"healthy", "selected-icon", "low", "empty", "unknown", "refill", "sack-disabled", "sack-enabled",
         "rare-double-hook", "junk-rusty-coin", "junk-leather-boot", "trophy-diamond", "shard-three"};
-    private static final long[] SLAYER_PET_AT = {2700, 4700, 6600, 9000, 11500, 14500, 18500, 23000, 25700, 30100, 32700, 35700};
+    private static final long[] SLAYER_PET_AT = {2900, 4900, 6900, 9000, 11500, 14500, 18500, 23000, 25700, 30100, 32700, 35700};
     private static final String[] SLAYER_PET_LABELS = {"welcome-level", "welcome-pet", "welcome-location", "quest-xp",
         "quest-progress", "boss-fight", "boss-slain", "manual-expanded", "manual-circle", "autopet-expanded", "autopet-circle", "settled"};
     private static final long[] CONFIRMATION_AT = {1200, 5000, 7200, 10800, 13800, 18800, 23800, 27000};
@@ -99,6 +104,7 @@ final class WorldSmoke {
             prepared = true;
             verifyBossTracker();
             verifyPlayerHead(client);
+            HeadIconSmoke.verify(client);
             verifyHeldDrillFuel(client);
             verifyElectionHeads();
             verifyKeeperInventory(client);
@@ -125,9 +131,40 @@ final class WorldSmoke {
                 SkyglintClient.INSTANCE.setPreviewScenario("confirmations");
                 confirmationStartedAt = SkyglintClient.INSTANCE.now();
             } else SkyglintClient.INSTANCE.setPreviewScenario(SCENARIOS[0]);
+            headProofTicks = 0;
+            client.gui.setScreen(HeadIconSmoke.proofScreen());
+            return;
+        }
+        if (headProofTicks >= 0) {
+            if (++headProofTicks == 40) Screenshot.grab(client.gameDirectory, "head-icon-overlay-proof.png",
+                client.gameRenderer.mainRenderTarget(), 1, text -> {});
+            if (headProofTicks >= 50) {
+                client.gui.setScreen(null);
+                headProofTicks = -1;
+                if (slayerPetStartedAt >= 0) {
+                    SkyglintClient.INSTANCE.setPreviewScenario("slayerpets");
+                    slayerPetStartedAt = SkyglintClient.INSTANCE.now();
+                }
+                if (fishingStartedAt >= 0) {
+                    SkyglintClient.INSTANCE.setPreviewScenario("fishing");
+                    fishingStartedAt = SkyglintClient.INSTANCE.now();
+                }
+                if (confirmationStartedAt >= 0) {
+                    SkyglintClient.INSTANCE.setPreviewScenario("confirmations");
+                    confirmationStartedAt = SkyglintClient.INSTANCE.now();
+                }
+            }
             return;
         }
         ticks++;
+        if (Boolean.getBoolean("skyglint.smoke.settingsOnly")) {
+            settingsProof.tick(client);
+            return;
+        }
+        if (Boolean.getBoolean("skyglint.smoke.winterOnly")) {
+            winterProof.tick(client);
+            return;
+        }
         if (fishingStartedAt >= 0) {
             long elapsed = SkyglintClient.INSTANCE.now() - fishingStartedAt;
             if (fishingCapture < FISHING_AT.length && elapsed >= FISHING_AT[fishingCapture]) {
@@ -288,7 +325,7 @@ final class WorldSmoke {
         } else if (label.equals("sack-disabled")) {
             if (bait == null || bait.getPresentation().getMetrics().size() != 2 ||
                 bait.getPresentation().getMetrics().stream().noneMatch(metric -> metric.getId().equals("bait_sack_disabled") && metric.getValue().isEmpty() && metric.getIcon().equals("@sack_disabled")) ||
-                bait.getPresentation().getMetrics().stream().noneMatch(metric -> metric.getId().equals("bait_selected") && metric.getValue().isEmpty()))
+                bait.getPresentation().getMetrics().stream().noneMatch(metric -> metric.getId().equals("bait_selected") && metric.getValue().equals("256")))
                 throw new AssertionError("Missing explicit disabled sack helper: " + snapshot);
         } else if (label.equals("unknown")) {
             if (bait != null) throw new AssertionError("Unknown bait manufactured a selected item or zero: " + snapshot);
@@ -296,7 +333,7 @@ final class WorldSmoke {
             if (bait == null || bait.getPresentation() == null || bait.getPresentation().getMetrics().size() != 1)
                 throw new AssertionError("Healthy bait lost its selected item: " + snapshot);
             var selected = bait.getPresentation().getMetrics().getFirst();
-            if (!selected.getId().equals("bait_selected") || !selected.getValue().isEmpty() ||
+            if (!selected.getId().equals("bait_selected") || !selected.getValue().equals("256") ||
                 selected.getFormat() != dev.skyglint.core.WidgetMetricFormat.ITEM || !"@fishing_bait".equals(selected.getIcon()) || selected.getAccent() != null)
                 throw new AssertionError("Healthy selected bait became a low warning or lost native item routing: " + snapshot);
             if (label.equals("selected-icon") && (selected.getExpandedUntil() == null || selected.getExpandedUntil() > SkyglintClient.INSTANCE.now()))
@@ -331,6 +368,32 @@ final class WorldSmoke {
             var notice = snapshot.getActiveNotice();
             if (notice == null || !notice.getTitle().equals("Welcome to SkyBlock") || notice.getPages().size() != 3)
                 throw new AssertionError("Welcome must freeze exactly the observed level/pet/location: " + snapshot);
+            var shown = new dev.skyglint.ui.presentation.HudComposition().compose(snapshot, SkyglintClient.INSTANCE.now(), true, false).getFirst();
+            var geometry = dev.skyglint.ui.presentation.CarouselGeometry.INSTANCE;
+            var font = dev.skyglint.ui.text.HudText.INSTANCE;
+            var pageWidths = shown.getParts().stream().map(part -> geometry.contentWidth(font.width(part.getText()), part.getIcon() != null)).toList();
+            int headingWidth = font.width(shown.getTitle());
+            float width = (float) geometry.width(headingWidth, pageWidths);
+            var layout = geometry.layout(width, headingWidth, pageWidths);
+            if (welcomeWidth == null) { welcomeWidth = width; welcomeHeadingLeft = layout.getHeadingLeft(); }
+            if (Math.abs(welcomeWidth - width) > .001 || Math.abs(welcomeHeadingLeft - layout.getHeadingLeft()) > .001)
+                throw new AssertionError("Welcome page moved its heading or resized its capsule");
+            String expected = switch (label) {
+                case "welcome-level" -> "SkyBlock · Level 287";
+                case "welcome-pet" -> "Tiger · Lv. 36";
+                default -> "The End";
+            };
+            var part = shown.getParts().get(shown.getCarouselIndex());
+            if (!part.getText().equals(expected)) throw new AssertionError("Welcome capture missed its settled page: " + part);
+            String fitted = font.fit(part.getText(), layout.textBudget(part.getIcon() != null));
+            var group = layout.group(font.width(fitted), part.getIcon() != null, 0f);
+            float groupRight = group.getTextLeft() + font.width(fitted);
+            float slotCenter = (layout.getPageLeft() + layout.getPageRight()) / 2;
+            if (Math.abs((group.getLeft() + groupRight) / 2 - slotCenter) > .001)
+                throw new AssertionError("Welcome native icon/caption group is not centered");
+            LoggerFactory.getLogger("SkyglintWorldSmoke").info(
+                "WELCOME_ALIGNMENT page={} width={} headingLeft={} slotCenter={} groupLeft={} groupRight={}",
+                expected, width, layout.getHeadingLeft(), slotCenter, group.getLeft(), groupRight);
         } else if (label.equals("quest-xp") || label.equals("quest-progress") || label.equals("boss-fight")) {
             if (snapshot.getWidgets().stream().noneMatch(widget -> widget.getId().equals("skyglint.slayer.quest")))
                 throw new AssertionError("Missing Slayer source-backed quest: " + snapshot);

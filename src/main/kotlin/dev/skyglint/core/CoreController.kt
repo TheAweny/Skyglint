@@ -1,6 +1,7 @@
 package dev.skyglint.core
 
 import java.util.UUID
+import java.util.Collections
 
 /** Single client-thread reducer. All times are monotonic milliseconds supplied by the adapter. */
 class CoreController(
@@ -11,6 +12,11 @@ class CoreController(
     private val eventNotices = eventNoticePolicy ?: EventNoticePolicy()
     private val ownsEventNotices = eventNoticePolicy == null
     var rewardPolicy: RewardRulePolicy = RewardRulePolicy()
+    var noticePreferences: NoticePreferences = NoticePreferences()
+        set(value) {
+            field = value
+            if (!value.showSkyBlockLevelUps) notice = null
+        }
     private var session: String? = null
     private var newestObservation = Long.MIN_VALUE
     private val bosses = linkedMapOf<UUID, BossBarState>()
@@ -102,7 +108,7 @@ class CoreController(
         newestObservation = now
         widgets.entries.removeIf { (_, widget) -> widget.expiresAt?.let { it <= now } == true }
         return events.mapNotNull { event ->
-            var rewardResult: CoreEvent.RewardObserved? = null
+            var acceptedEvent = event
             val accepted = when (event) {
                 is CoreEvent.SkillGain -> {
                     if (skillSignatures[event.skill] == event.signature ||
@@ -123,7 +129,7 @@ class CoreController(
                     val confirmation = skillLevelUps.observe(event, skills[event.skill], now)
                     if (confirmation == null) false else {
                         skills[event.skill] = confirmation.skill
-                        notices.offer(confirmation.notice, now)
+                        offerNotice(confirmation.notice, now)
                         true
                     }
                 }
@@ -157,7 +163,7 @@ class CoreController(
                     val confirmation = petLevelUps.observe(event, pet, now)
                     if (confirmation == null) false else {
                         pet = confirmation.activePet
-                        notices.offer(confirmation.notice, now)
+                        offerNotice(confirmation.notice, now)
                         true
                     }
                 }
@@ -167,8 +173,9 @@ class CoreController(
                     else unknownLevelHeaderAt?.let { now - it >= 5_000 } ?: true
                     if (fresh) {
                         if (known == null) unknownLevelHeaderAt = now
-                        notice = LevelUpNotice(event.title, event.newLevel, now, now + 4_000)
-                        notices.offer(NoticeRequest(
+                        notice = if (noticePreferences.showSkyBlockLevelUps)
+                            LevelUpNotice(event.title, event.newLevel, now, now + 4_000) else null
+                        offerNotice(NoticeRequest(
                             id = "skyglint.skyblock_level_up:${known ?: now}",
                             title = "SkyBlock level up!",
                             detail = known?.let { "Level $it" },
@@ -180,8 +187,10 @@ class CoreController(
                 }
                 is CoreEvent.WidgetObserved -> {
                     if (event.widget.expiresAt?.let { it <= now } == true) false else {
-                        val changed = widgets[event.widget.id]?.copy(expiresAt = event.widget.expiresAt) != event.widget
-                        widgets[event.widget.id] = event.widget
+                        val owned = event.widget.ownedSnapshot()
+                        val changed = widgets[owned.id]?.copy(expiresAt = owned.expiresAt) != owned
+                        widgets[owned.id] = owned
+                        acceptedEvent = CoreEvent.WidgetObserved(owned)
                         changed
                     }
                 }
@@ -189,7 +198,7 @@ class CoreController(
                 // This namespace and priority belong to confirmed SkyBlock level-ups. A generic
                 // detector must not occupy their dedupe key and suppress the real server event.
                 is CoreEvent.NoticeObserved -> if (event.request.id.startsWith("skyglint.skyblock_level_up:")) false
-                    else notices.offer(event.request.copy(priority = event.request.priority.coerceIn(0, 99)), now)
+                    else offerNotice(event.request.copy(priority = event.request.priority.coerceIn(0, 99)), now)
                 is CoreEvent.ContextObserved -> {
                     val newLocation = event.location?.trim()?.takeIf { it.isNotEmpty() }?.take(80)
                     val newMode = event.mode?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }?.take(80)
@@ -238,14 +247,14 @@ class CoreController(
                         if (observed.active && nextEvent?.active == true) {
                             eventNotices.reminderId(name)?.let { notices.cancel(it, now) }
                         }
-                        announcement?.let { notices.offer(it, now) }
+                        announcement?.let { offerNotice(it, now) }
                         true
                     }
                 }
                 is CoreEvent.RewardObserved -> {
                     val observation = event.observation
                     val decision = rewardPolicy.evaluate(observation)
-                    val queued = decision.shown && notices.offer(NoticeRequest(
+                    val request = NoticeRequest(
                         id = "skyglint.reward:${observation.sourceId}:${RewardRulePolicy.normalizeItemName(observation.itemName)}",
                         title = observation.sourceTitle.trim().take(80).ifEmpty { "Reward found" },
                         detail = observation.itemName.trim().take(120),
@@ -254,12 +263,16 @@ class CoreController(
                         magicFind = observation.magicFind?.takeIf { it in 0..100_000 },
                         rarity = observation.rarity,
                         reward = observation,
-                    ), now)
-                    rewardResult = event.copy(decision = decision.copy(queued = queued))
+                        durationMillis = if (observation.delivery == RewardDelivery.CLAIMABLE) 3_000 else 4_000,
+                        freshnessMillis = if (observation.delivery == RewardDelivery.CLAIMABLE) 60_000 else 15_000,
+                    )
+                    val offered = decision.shown && offerNotice(request, now)
+                    val queued = offered && noticePreferences.allows(request)
+                    acceptedEvent = event.copy(decision = decision.copy(queued = queued))
                     true // Observations remain diagnostic evidence even when presentation is hidden.
                 }
             }
-            if (accepted) rewardResult ?: event else null
+            if (accepted) acceptedEvent else null
         }
     }
 
@@ -300,12 +313,16 @@ class CoreController(
         val currentEvent = currentEvents.firstOrNull { !it.active && it.startsAt?.let { at -> at > now } == true }
             ?: currentEvents.firstOrNull { it.active } ?: currentEvents.firstOrNull()
         // Poll only fresh observed deadlines. Crossing zero still cannot manufacture an active event.
-        currentEvents.forEach { eventNotices.observe(it, now)?.let { request -> notices.offer(request, now) } }
-        welcome.observe(skyBlock?.level, pet, location, now)?.let { notices.offer(it, now) }
+        currentEvents.forEach { eventNotices.observe(it, now)?.let { request -> offerNotice(request, now) } }
+        welcome.observe(skyBlock?.level, pet, location, now)?.let { offerNotice(it, now) }
+        notices.retain(now, noticePreferences::allows)
         notices.retainTargets(visibleWidgets.flatMap { widget -> widget.presentation?.metrics.orEmpty()
             .map { NoticeMetricTarget(widget.id, it.id) } }.toSet(), now)
-        return HudSnapshot(true, session, bosses.values.toList(), progression, pet,
-            notice?.takeIf { now < it.expiresAt && now >= it.observedAt }, visibleWidgets, notices.active(now), location,
-            currentEvent, currentEvents, petSwitches.transition(now))
+        return HudSnapshot(true, session, Collections.unmodifiableList(bosses.values.toList()), progression, pet,
+            notice?.takeIf { now < it.expiresAt && now >= it.observedAt }, Collections.unmodifiableList(visibleWidgets), notices.active(now), location,
+            currentEvent, Collections.unmodifiableList(currentEvents), petSwitches.transition(now))
     }
+
+    private fun offerNotice(request: NoticeRequest, now: Long): Boolean =
+        notices.offer(request, now, visible = noticePreferences.allows(request))
 }

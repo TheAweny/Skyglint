@@ -6,6 +6,7 @@ import net.minecraft.network.chat.Component
 import net.minecraft.network.chat.HoverEvent
 import net.minecraft.network.chat.MutableComponent
 import net.minecraft.network.chat.Style
+import dev.skyglint.updates.github.UpdateImportance
 
 /** Native chat components; only the explicit action carries a click event. */
 object SkyglintChat {
@@ -19,8 +20,18 @@ object SkyglintChat {
     fun message(text: String, tone: Tone = Tone.INFO): MutableComponent = prefix()
         .append(Component.literal(text).setStyle(Style.EMPTY.withColor(tone.color)))
 
-    fun updateAvailable(version: String): MutableComponent = prefix()
-        .append(Component.literal("Update available ").setStyle(Style.EMPTY.withColor(Tone.INFO.color)))
+    fun updateAvailable(version: String): MutableComponent = updateAvailable(version, UpdateImportance.NORMAL)
+
+    fun updateAvailable(version: String, importance: UpdateImportance): MutableComponent = prefix()
+        .append(Component.literal(when (importance) {
+            UpdateImportance.NORMAL -> "Update available "
+            UpdateImportance.IMPORTANT -> "Important update available "
+            UpdateImportance.CRITICAL -> "Critical update available "
+        }).setStyle(Style.EMPTY.withColor(when (importance) {
+            UpdateImportance.NORMAL -> Tone.INFO.color
+            UpdateImportance.IMPORTANT -> Tone.WARNING.color
+            UpdateImportance.CRITICAL -> Tone.ERROR.color
+        })))
         .append(Component.literal(version).setStyle(Style.EMPTY.withColor(ACCENT).withBold(true)))
         .append(Component.literal("  ").setStyle(Style.EMPTY.withColor(QUIET)))
         .append(Component.literal("[View update]").setStyle(Style.EMPTY.withColor(ACCENT)

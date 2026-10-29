@@ -1,6 +1,8 @@
 package dev.skyglint.fabric
 
 import dev.skyglint.ui.SkyglintUpdatesScreen
+import dev.skyglint.core.CoreEvent
+import dev.skyglint.ui.presentation.UpdateNoticePresentation
 import dev.skyglint.updates.github.*
 import net.fabricmc.loader.api.FabricLoader
 import net.fabricmc.loader.api.metadata.ModOrigin
@@ -14,12 +16,13 @@ import java.util.concurrent.TimeUnit
 /** Client-thread presentation and one bounded, daemon I/O worker; no player data is sent. */
 object GitHubUpdates : AutoCloseable {
     enum class Phase { IDLE, CHECKING, AVAILABLE, DOWNLOADING, READY, UP_TO_DATE, UNAVAILABLE, FAILED }
-    data class View(
+    data class View @JvmOverloads constructor(
         val currentVersion: String,
         val phase: Phase = Phase.IDLE,
         val availableVersion: String? = null,
         val message: String = "",
         val automaticChecks: Boolean = true,
+        val importance: UpdateImportance = UpdateImportance.NORMAL,
     )
 
     val releasesUri: URI = URI.create("https://github.com/TheAweny/Skyglint/releases")
@@ -29,7 +32,7 @@ object GitHubUpdates : AutoCloseable {
     private var state = View("—")
     private var offer: UpdateRelease? = null
     private var automaticAttempted = false
-    private var announcedVersion: String? = null
+    private val announcements = UpdateAnnouncementPolicy()
     private var lastCheck = Long.MIN_VALUE
     private var inFlight = false
     @Volatile private var stopped = false
@@ -65,15 +68,24 @@ object GitHubUpdates : AutoCloseable {
     fun onSkyBlockTick() {
         if (stopped || state.phase != Phase.AVAILABLE) return
         val release = offer ?: return
-        if (announcedVersion == release.version) return
         val player = Minecraft.getInstance().player ?: return
-        player.sendSystemMessage(SkyglintChat.updateAvailable(release.version))
-        announcedVersion = release.version
+        val announcement = announcements.offer(release) ?: return
+        player.sendSystemMessage(SkyglintChat.updateAvailable(release.version, release.importance))
+        if (SkyglintClient.config.current.enabled) {
+            SkyglintClient.core.apply(listOf(CoreEvent.NoticeObserved(UpdateNoticePresentation.notice(announcement))), SkyglintClient.now())
+        }
     }
+
+    /** Reconnect never repeats an offer already announced during this client launch. */
+    fun onDisconnected() = announcements.onDisconnected()
 
     fun open() {
         val client = Minecraft.getInstance()
-        client.execute { client.gui.setScreen(SkyglintUpdatesScreen(client.gui.screen())) }
+        client.execute {
+            val current = client.gui.screen()
+            if (current is dev.skyglint.ui.SkyglintSettingsScreen) current.showUpdates()
+            else client.gui.setScreen(SkyglintUpdatesScreen(current))
+        }
     }
 
     fun check(manual: Boolean = true) {
@@ -101,6 +113,7 @@ object GitHubUpdates : AutoCloseable {
                 is UpdateCheck.Available -> {
                     offer = result.release
                     state = state.copy(phase = Phase.AVAILABLE, availableVersion = result.release.version,
+                        importance = result.release.importance,
                         message = "A new version for Minecraft 26.2 is available. Choose Download below.")
                 }
                 UpdateCheck.UpToDate -> {

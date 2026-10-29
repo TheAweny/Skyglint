@@ -4,6 +4,8 @@ import java.util.HexFormat
 import java.util.Properties
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import java.util.zip.ZipFile
+import groovy.json.JsonSlurper
 
 plugins {
     id("net.fabricmc.fabric-loom") version "1.17.21"
@@ -38,7 +40,10 @@ java {
 }
 kotlin { jvmToolchain(25) }
 tasks.withType<JavaCompile>().configureEach { options.release.set(25) }
-tasks.test { useJUnitPlatform() }
+tasks.test {
+    useJUnitPlatform()
+    systemProperty("skyglint.projectRoot", layout.projectDirectory.asFile.absolutePath)
+}
 tasks.processResources {
     inputs.property("version", project.version)
     filesMatching("fabric.mod.json") { expand("version" to project.version) }
@@ -64,6 +69,50 @@ val smoke by sourceSets.creating {
     compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
     runtimeClasspath += output + compileClasspath + sourceSets.main.get().runtimeClasspath
 }
+
+// Keep the opt-in graphical fixtures compilable in every build without launching a client.
+tasks.check { dependsOn(smoke.compileJavaTaskName) }
+
+val verifyProductionJar by tasks.registering {
+    group = "verification"
+    description = "Checks the packaged mod target, bytecode level and smoke-source isolation."
+    dependsOn(tasks.jar)
+    inputs.file(tasks.jar.flatMap { it.archiveFile })
+    inputs.property("version", project.version.toString())
+    doLast {
+        ZipFile(tasks.jar.get().archiveFile.get().asFile).use { zip ->
+            val entries = zip.entries().asSequence().toList()
+            check(entries.none { it.name.startsWith("dev/skyglint/smoke/") }) {
+                "Production JAR contains isolated smoke classes"
+            }
+            val classes = entries.filter { it.name.endsWith(".class") }
+            check(classes.isNotEmpty()) { "Production JAR contains no classes" }
+            classes.forEach { entry ->
+                zip.getInputStream(entry).use { input ->
+                    val header = input.readNBytes(8)
+                    check(header.size == 8 && header.take(4).map { it.toInt() and 255 } == listOf(202, 254, 186, 190)) {
+                        "Invalid class header: ${entry.name}"
+                    }
+                    val major = ((header[6].toInt() and 255) shl 8) or (header[7].toInt() and 255)
+                    check(major == 69) { "Expected JVM 25 bytecode, found class major $major: ${entry.name}" }
+                }
+            }
+            val metadataEntry = zip.getEntry("fabric.mod.json") ?: error("Missing fabric.mod.json")
+            val metadata = zip.getInputStream(metadataEntry).reader(Charsets.UTF_8).use {
+                JsonSlurper().parse(it) as Map<*, *>
+            }
+            val dependencies = metadata["depends"] as? Map<*, *> ?: error("Missing mod dependencies")
+            check(metadata["id"] == "reborn" && metadata["name"] == "Skyglint") { "Packaged mod identity changed" }
+            check(metadata["version"] == project.version.toString()) { "Packaged version does not match project.version" }
+            check(metadata["environment"] == "client") { "Expected client-only mod" }
+            check(dependencies["minecraft"] == "26.2") { "Minecraft target must be exactly 26.2" }
+            check(dependencies["java"] == ">=25") { "Java requirement must remain >=25" }
+            check(zip.getEntry("skyglint.mixins.json") != null) { "Missing production Mixin configuration" }
+        }
+    }
+}
+tasks.check { dependsOn(verifyProductionJar) }
+
 loom {
     mods {
         create("reborn") { sourceSet(sourceSets.main.get()) }
@@ -81,6 +130,14 @@ loom {
             if (project.hasProperty("fishingSmoke")) {
                 vmArg("-Dskyglint.smoke.world=true")
                 vmArg("-Dskyglint.smoke.fishingOnly=true")
+            }
+            if (project.hasProperty("winterSmoke")) {
+                vmArg("-Dskyglint.smoke.world=true")
+                vmArg("-Dskyglint.smoke.winterOnly=true")
+            }
+            if (project.hasProperty("settingsSmoke")) {
+                vmArg("-Dskyglint.smoke.world=true")
+                vmArg("-Dskyglint.smoke.settingsOnly=true")
             }
         } }
     }

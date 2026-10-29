@@ -12,13 +12,38 @@ import dev.skyglint.features.pets.PetLifecycleModule
 import dev.skyglint.features.slayer.SlayerModule
 import dev.skyglint.features.fishing.encounters.FishingEncounterModule
 import dev.skyglint.features.fishing.bait.FishingBaitModule
+import dev.skyglint.features.buffs.BuffExpiryModule
+import dev.skyglint.features.winter.JerryDefenseModule
+import dev.skyglint.features.winter.JerryDefenseResultModule
+import dev.skyglint.features.winter.ReindrakeModule
 
 /** The same source modules serve the live adapter, replay fixtures and isolated in-game previews. */
 object ContextModules {
-    fun create(clock: () -> Long): List<SignalModule> = listOf(GardenVisitorModule(clock), GardenPestModule(clock),
-        GardenMilestoneModule(clock), GardenStatisticsModule(clock), JacobContestModule(clock), DungeonModule(clock), ElectionModule(clock),
-        MiningContextModule(clock), MiningEventModule(clock), RandomMiningEventModule(clock), TemporaryOccurrenceModule(clock),
-        DrillFuelModule(clock), NucleusActivityModule(clock), CurrencySignalModule(clock),
-        ServerClosingModule(clock), TrevorModule(clock), BestiaryModule(clock), PetLifecycleModule(), SlayerModule(clock),
-        FishingEncounterModule(clock), FishingBaitModule(clock))
+    fun create(clock: () -> Long): List<SignalModule> = listOf(
+        GardenVisitorModule(clock),
+        GardenPestModule(clock),
+        GardenMilestoneModule(clock),
+        GardenStatisticsModule(clock),
+        JacobContestModule(clock),
+        DungeonModule(clock),
+        ElectionModule(clock),
+        MiningContextModule(clock),
+        MiningEventModule(clock),
+        RandomMiningEventModule(clock),
+        TemporaryOccurrenceModule(clock),
+        DrillFuelModule(clock),
+        NucleusActivityModule(clock),
+        CurrencySignalModule(clock),
+        ServerClosingModule(clock),
+        TrevorModule(clock),
+        BestiaryModule(clock),
+        PetLifecycleModule(),
+        SlayerModule(clock),
+        FishingEncounterModule(clock),
+        FishingBaitModule(clock),
+        BuffExpiryModule(clock),
+        JerryDefenseModule(clock),
+        JerryDefenseResultModule(clock),
+        ReindrakeModule(clock),
+    )
 }

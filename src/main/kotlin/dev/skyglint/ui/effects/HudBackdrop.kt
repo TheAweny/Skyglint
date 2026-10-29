@@ -52,6 +52,15 @@ object HudBackdrop {
             .build()
     )
     private var snapshot: GpuTexture? = null
+    private val surfacePipeline: RenderPipeline = BackdropPipelineInvoker.`skyglint$registerBackdrop`(
+        RenderPipeline.builder()
+            .withLocation(Identifier.fromNamespaceAndPath("skyglint", "pipeline/ui_surface"))
+            .withVertexShader(Identifier.fromNamespaceAndPath("skyglint", "core/hud_backdrop"))
+            .withFragmentShader(Identifier.fromNamespaceAndPath("skyglint", "core/ui_surface"))
+            .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+            .withColorTargetState(ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS).withCull(false).build())
     private var snapshotView: GpuTextureView? = null
     private var requested = false
     private var disabled = false
@@ -61,7 +70,15 @@ object HudBackdrop {
     private var allocationCount = 0L
 
     /** Load/register shaders at client initialization, before the first resource compilation. */
-    fun initialize() { pipeline.location; contourPipeline.location }
+    fun initialize() { pipeline.location; contourPipeline.location; surfacePipeline.location }
+
+    /** Antialiased native settings surfaces; radius and color are independent of framebuffer scale. */
+    fun surface(graphics: GuiGraphicsExtractor,x: Float,y: Float,w: Float,h: Float,radius: Float,color: Int) {
+        if(w<=0||h<=0)return
+        val state=(graphics as BackdropGraphicsAccessor).`skyglint$backdropRenderState`()
+        state.addGuiElement(BackdropRenderState(surfacePipeline,TextureSetup.noTexture(),Matrix3x2f(graphics.pose()),
+            x,y,w,h,color,(radius/minOf(w,h)).coerceIn(0f,.5f)))
+    }
 
     /** Call once at the beginning of each HUD extraction, before the first capsule. */
     fun beginFrame(graphics: GuiGraphicsExtractor) {

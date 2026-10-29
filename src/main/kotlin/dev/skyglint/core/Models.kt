@@ -33,6 +33,8 @@ data class BossBarState(
     val progress: Float,
     val color: String = "PURPLE",
     val overlay: String = "PROGRESS",
+    /** Copied legacy palette runs; point status colors must survive Component.string flattening. */
+    val formattedTitle: String = title,
 )
 
 sealed interface ProgressionView {
@@ -48,6 +50,7 @@ data class ItemVisualHint(val itemName: String? = null, val vanillaItemId: Strin
 enum class FishingLootCategory { TREASURE, JUNK, TROPHY }
 enum class FishingCatchQuality { GOOD, GREAT, OUTSTANDING }
 enum class TrophyFishGrade { BRONZE, SILVER, GOLD, DIAMOND }
+enum class RewardDelivery { RECEIVED, CLAIMABLE }
 
 /** A detector reports a reward, never its market price or whether the player should care about it. */
 data class RewardObservation(
@@ -61,6 +64,8 @@ data class RewardObservation(
     val fishingCategory: FishingLootCategory? = null,
     val catchQuality: FishingCatchQuality? = null,
     val trophyGrade: TrophyFishGrade? = null,
+    /** Server result rewards may still require manual collection; never announce these as received. */
+    val delivery: RewardDelivery = RewardDelivery.RECEIVED,
 )
 
 /** `shown` is the filtering decision; `queued` is separate because an existing lease may coalesce it. */
@@ -88,6 +93,8 @@ data class NoticeRequest(
     /** Optional short row caption; complete title/detail remain available in the tooltip. */
     val compactCaption: String? = null,
     val reward: RewardObservation? = null,
+    /** A bounded burst of independently observed rewards; amounts and policy decisions stay per item. */
+    val loot: List<RewardObservation> = emptyList(),
 ) {
     init {
         require(id.isNotBlank() && title.isNotBlank())
@@ -96,6 +103,7 @@ data class NoticeRequest(
         require(magicFind == null || magicFind in 0..100_000)
         require(pages.size <= 8 && pages.all { it.title.isNotBlank() && it.title.length <= 120 })
         require(compactCaption == null || (compactCaption.isNotBlank() && compactCaption.length <= 120))
+        require(loot.size <= 8)
     }
 }
 
@@ -116,6 +124,7 @@ data class TransientNotice(
     val target: NoticeMetricTarget? = null,
     val compactCaption: String? = null,
     val reward: RewardObservation? = null,
+    val loot: List<RewardObservation> = emptyList(),
 )
 
 data class EventScheduleObservation(val name: String, val startsInMillis: Long?, val active: Boolean, val source: String,
@@ -137,12 +146,10 @@ enum class WidgetRole { PRIMARY, PROGRESSION, COUNTERS, STATS, INLINE }
 /** Monotonic deadline with a server-observed or source-verified interval. Unknown totals stay unknown. */
 data class CountdownSnapshot(val deadline: Long, val intervalMillis: Long) {
     init { require(intervalMillis > 0) }
-    fun remaining(now: Long): Long = (deadline - now).coerceAtLeast(0)
+    fun remaining(now: Long): Long = if (deadline <= now) 0 else
+        (deadline - now).takeIf { it >= 0 } ?: Long.MAX_VALUE
     fun fraction(now: Long): Double = (remaining(now).toDouble() / intervalMillis).coerceIn(0.0, 1.0)
-    fun caption(now: Long): String {
-        val seconds = (remaining(now) + 999) / 1_000
-        return "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}"
-    }
+    fun caption(now: Long): String = DurationText.countdown(remaining(now))
 }
 
 enum class WidgetMetricFormat { DEFAULT, REMAINING_TIME, ITEM }

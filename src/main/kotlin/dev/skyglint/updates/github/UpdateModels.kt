@@ -14,6 +14,11 @@ data class UpdateInstallation(
     val production: Boolean = true,
 )
 
+/** Explicit publisher metadata. Release titles and release-note text never determine importance. */
+enum class UpdateImportance(val manifestValue: String) {
+    NORMAL("normal"), IMPORTANT("important"), CRITICAL("critical"),
+}
+
 /** Contains no server-provided executable URL or filesystem path. */
 data class UpdateRelease(
     val version: String,
@@ -22,6 +27,7 @@ data class UpdateRelease(
     val sha256: String,
     val size: Long,
     val loaderVersion: String,
+    val importance: UpdateImportance = UpdateImportance.NORMAL,
 )
 
 sealed interface UpdateCheck {

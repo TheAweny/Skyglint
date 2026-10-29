@@ -39,6 +39,10 @@ class GitHubUpdateService(
             validateAsset(manifestAsset, tag, MANIFEST, MAX_MANIFEST_BYTES.toLong())
             val manifest = json(fetch(assetUri(tag, MANIFEST), MAX_MANIFEST_BYTES))
             require(manifest.integer("schema") == 1L) { "unsupported_manifest_schema" }
+            val importance = if (!manifest.has("importance")) UpdateImportance.NORMAL else {
+                val raw = manifest.string("importance")
+                UpdateImportance.entries.singleOrNull { it.manifestValue == raw } ?: error("invalid_importance")
+            }
             require(manifest.string("version") == version && manifest.string("minecraft") == MINECRAFT) { "manifest_target_mismatch" }
             require(manifest.integer("java") == 25L && installation.javaFeature >= 25) { "unsupported_java" }
             val loader = manifest.string("fabricLoader")
@@ -55,7 +59,7 @@ class GitHubUpdateService(
             jarAsset.get("digest")?.takeUnless { it.isJsonNull }?.let {
                 require(it.asString == "sha256:$hash") { "asset_digest_mismatch" }
             }
-            val offer = UpdateRelease(version, tag, name, hash, size, loader)
+            val offer = UpdateRelease(version, tag, name, hash, size, loader, importance)
             offered = offer
             UpdateCheck.Available(offer)
         }

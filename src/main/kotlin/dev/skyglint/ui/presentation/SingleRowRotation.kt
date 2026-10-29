@@ -1,7 +1,9 @@
 package dev.skyglint.ui.presentation
 
 /** Keep all server UUIDs reachable in one row without restarting a dwell on each progress update. */
-class SingleRowRotation(private val dwellMillis: Long = 6_000) {
+class SingleRowRotation(dwellMillis: Long = 6_000) {
+    var dwellMillis: Long = dwellMillis
+        set(value) { require(value > 0); field = value }
     private var selected: String? = null
     private var since = 0L
     private var lastUrgent: String? = null

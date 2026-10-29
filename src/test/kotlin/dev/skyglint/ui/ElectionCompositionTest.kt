@@ -1,6 +1,6 @@
 package dev.skyglint.ui
 
-import dev.skyglint.core.ElectionPreviewTimeline
+import dev.skyglint.preview.ElectionPreviewTimeline
 import dev.skyglint.core.*
 import dev.skyglint.ui.presentation.HudComposition
 import dev.skyglint.ui.presentation.HudElementKind

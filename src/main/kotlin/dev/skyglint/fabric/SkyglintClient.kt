@@ -6,18 +6,17 @@ import dev.skyglint.core.*
 import dev.skyglint.diagnostics.DiagnosticLog
 import dev.skyglint.ui.SkyglintHud
 import dev.skyglint.ui.SkyglintSettingsScreen
+import dev.skyglint.ui.UiWidgetRegistry
 import dev.skyglint.ui.effects.HudBackdrop
 import dev.skyglint.api.SkyglintModule
-import dev.skyglint.features.LevelingMenuModule
-import dev.skyglint.features.SimpleActivityModule
-import dev.skyglint.features.RareDropSignalModule
+import dev.skyglint.features.BuiltInModules
+import dev.skyglint.fabric.commands.SkyglintCommands
+import dev.skyglint.preview.HudPreviewController
+import dev.skyglint.preview.PreviewScenario
 import dev.skyglint.features.EventScheduleModule
 import dev.skyglint.features.ObservedText
 import dev.skyglint.features.ServerSignalCapture
-import dev.skyglint.features.ContextModules
 import net.fabricmc.api.ClientModInitializer
-import net.fabricmc.fabric.api.client.command.v2.ClientCommands.*
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents
@@ -38,7 +37,6 @@ import net.minecraft.world.scores.DisplaySlot
 import net.minecraft.world.scores.PlayerTeam
 import org.slf4j.LoggerFactory
 import java.util.UUID
-import com.mojang.brigadier.arguments.StringArgumentType
 import dev.skyglint.diagnostics.DiagnosticExporter
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -48,22 +46,12 @@ object SkyglintClient : ClientModInitializer {
     lateinit var diagnostics: DiagnosticLog; private set
     private val liveEventNotices = EventNoticePolicy()
     val core = CoreController(eventNoticePolicy = liveEventNotices)
-    var preview = false; private set
-    private var previewScenario = "skill"
-    private var previewStartedAt = 0L
-    private var previewTimeline: PreviewTimeline? = null
-    private var eventPreviewTimeline: EventPreviewTimeline? = null
-    private var levelUpPreviewTimeline: LevelUpPreviewTimeline? = null
-    private var contextPreviewTimeline: ContextPreviewTimeline? = null
-    private var electionPreviewTimeline: ElectionPreviewTimeline? = null
-    private var miningPreviewTimeline: MiningPreviewTimeline? = null
-    private var nucleusPreviewTimeline: NucleusPreviewTimeline? = null
-    private var confirmationPreviewTimeline: ConfirmationPreviewTimeline? = null
-    private var slayerPetPreviewTimeline: SlayerPetPreviewTimeline? = null
-    private var fishingPreviewTimeline: FishingPreviewTimeline? = null
+    private val previews = HudPreviewController()
+    val preview: Boolean get() = previews.enabled
     var petIcon: ItemStack? = null; private set
     var noticeIcon: ItemStack? = null; private set
     var noticeRarity: String? = null; private set
+    var noticeLootIcons: Map<String, ItemStack> = emptyMap(); private set
     var skyBlockIcon: ItemStack? = null; private set
     var fishingBaitIcon: ItemStack? = null; private set
     private val eventSchedule = EventScheduleModule()
@@ -117,6 +105,8 @@ object SkyglintClient : ClientModInitializer {
 
     override fun onInitializeClient() {
         HudBackdrop.initialize()
+        dev.skyglint.ui.text.SettingsText.initialize()
+        dev.skyglint.ui.JerryDefenseRenderer.register()
         PetIconCache.initialize()
         ElectionHeads.initialize()
         val migration = dev.skyglint.updates.LegacyConfigMigration.migrate(FabricLoader.getInstance().configDir)
@@ -129,17 +119,18 @@ object SkyglintClient : ClientModInitializer {
             logger.error("Skyglint config could not load; HUD disabled until the file is repaired", e)
         }
         core.rewardPolicy = RewardRulePolicy.fromConfig(config.current.rewardMode, config.current.rewardOverrides)
+        applyBehaviorPreferences(config.current)
         diagnostics = DiagnosticLog(directory.resolve("logs"), { config.current })
+        UiWidgetRegistry.onFailure = { id, failure ->
+            diagnostics.record("ui", "renderer_quarantined", mapOf("module" to id, "error" to failure.javaClass.simpleName))
+        }
         GitHubUpdates.initialize()
         core.modules.onFailure = { failure ->
             logger.error("Skyglint detector {} failed on {}", failure.moduleId, failure.signalType, failure.cause)
             diagnostics.record("module", "failure", mapOf("id" to failure.moduleId, "signal" to failure.signalType,
                 "error" to failure.cause.javaClass.simpleName), force = true)
         }
-        core.modules.register(LevelingMenuModule()).register(SimpleActivityModule(::now)).register(RareDropSignalModule()).register(eventSchedule)
-        val contextualModules = ContextModules.create(::now)
-        contextualModules.forEach(core.modules::register)
-        contextModuleIds = contextualModules.mapTo(mutableSetOf()) { it.id }
+        contextModuleIds = BuiltInModules.registerFeatures(core.modules, ::now, eventSchedule)
         FabricLoader.getInstance().getEntrypoints("skyglint:modules", SkyglintModule::class.java).forEach { module ->
             try { module.register(core.modules) } catch (failure: Exception) {
                 logger.error("Skyglint companion module initialization failed", failure)
@@ -150,7 +141,7 @@ object SkyglintClient : ClientModInitializer {
             "minecraft" to "26.2", "configError" to configFailure))
         ClientTickEvents.END_CLIENT_TICK.register { tick(it) }
         ClientLifecycleEvents.CLIENT_STARTED.register { ModUpdateCleanup.run() }
-        ClientPlayConnectionEvents.DISCONNECT.register { _, _ -> contextSource.reset(); reset("disconnect", true) }
+        ClientPlayConnectionEvents.DISCONNECT.register { _, _ -> GitHubUpdates.onDisconnected(); contextSource.reset(); reset("disconnect", true) }
         ClientReceiveMessageEvents.GAME.register { message, overlay -> receiveGame(message, overlay, false) }
         ClientReceiveMessageEvents.GAME_CANCELED.register { message, overlay -> receiveGame(message, overlay, true) }
         ClientReceiveMessageEvents.CHAT.register { message, _, _, _, _ ->
@@ -161,69 +152,7 @@ object SkyglintClient : ClientModInitializer {
         }
         ClientLifecycleEvents.CLIENT_STOPPING.register { GitHubUpdates.close(); electionApi.close(); diagnostics.record("lifecycle", "stop"); diagnostics.close() }
         HudElementRegistry.attachElementAfter(VanillaHudElements.BOSS_BAR, Identifier.fromNamespaceAndPath("skyglint", "hud")) { graphics, _ -> SkyglintHud.render(graphics) }
-        ClientCommandRegistrationCallback.EVENT.register { dispatcher, _ ->
-            val commands = dispatcher.register(literal("skyglint").requires { it.attended() }
-                .executes { openSettings(); 1 }
-                .then(literal("update").executes { GitHubUpdates.open(); 1 }
-                    .then(literal("check").executes { GitHubUpdates.check(); 1 })
-                    .then(literal("download").executes { GitHubUpdates.download(); 1 }))
-                .then(literal("diagnostics").executes { feedback("Diagnostics: logs=${config.current.loggingEnabled}, raw=${config.current.captureRawText}, chat=${config.current.captureChat}. on|off|export"); 1 }
-                    .then(literal("on").executes { command {
-                        setDiagnostics(true)
-                        feedback("Full diagnostics ON and saved: events, HUD/menu sources and all received chat. Report: /skyglint diagnostics export")
-                    } })
-                    .then(literal("off").executes { command {
-                        setDiagnostics(false)
-                        feedback("Full diagnostics OFF")
-                    } })
-                    .then(literal("export").executes { exportDiagnostics(); 1 }))
-                .then(literal("status").executes {
-                    feedback("HUD=${config.current.enabled}; SkyBlock=${session != null}; logs=${config.current.loggingEnabled}; raw=${config.current.captureRawText}; chat=${config.current.captureChat}; drops=${config.current.rewardMode}; dropped=${diagnostics.droppedRecords}; ${diagnostics.lastFailure?.message ?: configFailure ?: "config OK"}"); 1
-                })
-                .then(literal("drops").executes { feedback("Drop mode=${config.current.rewardMode}; item rules=${config.current.rewardOverrides.size}. /skyglint drops hide|show|reset <item>; mode all|filtered"); 1 }
-                    .then(literal("mode").then(literal("all").executes { command { changeConfig { it.copy(rewardMode = "all") }; feedback("Show all recognized rewards; explicit item rules retained") } })
-                        .then(literal("filtered").executes { command { changeConfig { it.copy(rewardMode = "filtered") }; feedback("Frequent drop filter ON") } }))
-                    .then(literal("hide").then(argument("item", StringArgumentType.greedyString()).executes {
-                        command { setRewardRule(StringArgumentType.getString(it, "item"), "hide") }
-                    }))
-                    .then(literal("show").then(argument("item", StringArgumentType.greedyString()).executes {
-                        command { setRewardRule(StringArgumentType.getString(it, "item"), "show") }
-                    }))
-                    .then(literal("reset").then(argument("item", StringArgumentType.greedyString()).executes {
-                        command { setRewardRule(StringArgumentType.getString(it, "item"), null) }
-                    })))
-                .then(literal("logs").then(literal("on").executes { command { setLogging(true); feedback("Logging ON; config/skyglint/logs/skyglint-events.jsonl") } })
-                    .then(literal("off").executes { command { setLogging(false); feedback("Logging OFF") } })
-                    .then(literal("chat").then(literal("on").executes { command { setChatLogging(true); feedback("Full received chat capture ON; includes private and hidden messages") } })
-                        .then(literal("off").executes { command { setChatLogging(false); feedback("Full chat capture OFF") } }))
-                    .then(literal("raw").then(literal("on").executes { command { setRawLogging(true); feedback("Raw relevant server signals ON") } })
-                        .then(literal("off").executes { command { setRawLogging(false); feedback("Raw signals OFF") } })))
-                .then(literal("preview").then(literal("on").executes { setPreview(true); feedback("Synthetic preview ON"); 1 })
-                    .then(literal("off").executes { setPreview(false); feedback("Preview OFF"); 1 })
-                    .then(literal("skill").executes { setPreviewScenario("skill"); 1 })
-                    .then(literal("skyblock").executes { setPreviewScenario("skyblock"); 1 })
-                    .then(literal("unknown").executes { setPreviewScenario("unknown"); 1 })
-                    .then(literal("levelup").executes { setPreviewScenario("levelup"); 1 })
-                    .then(literal("objective").executes { setPreviewScenario("objective"); 1 })
-                    .then(literal("rare").executes { setPreviewScenario("rare"); 1 })
-                    .then(literal("ranks").executes { setPreviewScenario("ranks"); 1 })
-                    .then(literal("mining").executes { setPreviewScenario("mining"); 1 })
-                    .then(literal("nucleus").executes { setPreviewScenario("nucleus"); 1 })
-                    .then(literal("confirmations").executes { setPreviewScenario("confirmations"); 1 })
-                    .then(literal("slayerpets").executes { setPreviewScenario("slayerpets"); 1 })
-                    .then(literal("fishing").executes { setPreviewScenario("fishing"); 1 })
-                    .then(literal("idle").executes { setPreviewScenario("idle"); 1 })
-                    .then(literal("event").executes { setPreviewScenario("event"); 1 })
-                    .then(literal("petlevelup").executes { setPreviewScenario("petlevelup"); 1 })
-                    .then(literal("skilllevelup").executes { setPreviewScenario("skilllevelup"); 1 })
-                    .then(literal("garden").executes { setPreviewScenario("garden"); 1 })
-                    .then(literal("dungeon").executes { setPreviewScenario("dungeon"); 1 })
-                    .then(literal("election").executes { setPreviewScenario("election"); 1 })
-                    .then(literal("sequence").executes { setPreviewScenario("sequence"); 1 }))
-                .then(literal("enable").executes { command { setEnabled(true) } })
-                .then(literal("disable").executes { command { setEnabled(false) } }))
-            dispatcher.register(literal("reborn").requires { it.attended() }.redirect(commands))
-        }
+        SkyglintCommands.register()
     }
 
     fun now(): Long = System.nanoTime() / 1_000_000
@@ -231,6 +160,7 @@ object SkyglintClient : ClientModInitializer {
         val before = config.current
         val after = config.update(transform)
         core.skillActiveMillis = after.skillTimeoutSeconds * 1_000L
+        applyBehaviorPreferences(after)
         core.rewardPolicy = RewardRulePolicy.fromConfig(after.rewardMode, after.rewardOverrides)
         diagnostics.record("config", "changed", mapOf("enabled" to after.enabled, "logs" to after.loggingEnabled,
             "raw" to after.captureRawText, "chat" to after.captureChat, "scale" to after.hudScale, "timeoutSeconds" to after.skillTimeoutSeconds,
@@ -244,6 +174,13 @@ object SkyglintClient : ClientModInitializer {
             bosses.states.values.forEach { diagnostics.record("bossbar", "logging_snapshot", mapOf("id" to it.id.toString(),
                 "title" to it.title, "progress" to it.progress, "color" to it.color, "overlay" to it.overlay)) }
         }
+    }
+    private fun applyBehaviorPreferences(value: ModConfig) {
+        core.skillActiveMillis=value.skillTimeoutSeconds*1_000L
+        core.noticePreferences=NoticePreferences(value.showWelcome,value.showEventReminders,value.showEventStarts,
+            value.showSkillLevelUps,value.showPetLevelUps,value.showSkyBlockLevelUps,value.showMiningTimers,
+            value.showCookieExpiry,value.showGodPotionExpiry,
+            value.showCookieWarning,value.showGodPotionWarning,value.showJerryResults)
     }
     fun setRawLogging(enabled: Boolean) = changeConfig { it.copy(captureRawText = enabled) }
     fun setChatLogging(enabled: Boolean) = changeConfig { it.copy(captureChat = enabled, loggingEnabled = it.loggingEnabled || enabled) }
@@ -284,7 +221,7 @@ object SkyglintClient : ClientModInitializer {
     }
     fun setEnabled(enabled: Boolean) = changeConfig { it.copy(enabled = enabled) }
     fun setDetailedDungeonHud(detailed: Boolean) = changeConfig { it.copy(detailedDungeonHud = detailed) }
-    private fun setRewardRule(itemName: String, rule: String?) {
+    internal fun setRewardRule(itemName: String, rule: String?) {
         val name = RewardRulePolicy.normalizeItemName(itemName)
         require(name.isNotEmpty() && name.length <= 120 && name.none(Char::isISOControl)) { "Item name must contain 1–120 characters" }
         require(rule == null || name in config.current.rewardOverrides || config.current.rewardOverrides.size < 128) { "Maximum 128 item rules; reset an existing rule first" }
@@ -292,49 +229,26 @@ object SkyglintClient : ClientModInitializer {
         feedback("$name: ${rule ?: "default"}")
     }
     fun setPreview(enabled: Boolean) {
-        if (enabled && !preview) {
-            previewStartedAt = now()
-            if (previewScenario == "sequence") previewTimeline = PreviewTimeline(previewStartedAt)
-            if (previewScenario == "event") eventPreviewTimeline = EventPreviewTimeline(previewStartedAt)
-            if (previewScenario in setOf("petlevelup", "skilllevelup"))
-                levelUpPreviewTimeline = LevelUpPreviewTimeline(previewStartedAt, previewScenario == "petlevelup")
-            if (previewScenario in setOf("garden", "dungeon")) contextPreviewTimeline = ContextPreviewTimeline(previewStartedAt, previewScenario == "dungeon")
-            if (previewScenario == "election") electionPreviewTimeline = ElectionPreviewTimeline(previewStartedAt)
-            if (previewScenario == "mining") miningPreviewTimeline = MiningPreviewTimeline(previewStartedAt)
-            if (previewScenario == "confirmations") confirmationPreviewTimeline = ConfirmationPreviewTimeline(previewStartedAt)
-            if (previewScenario == "slayerpets") slayerPetPreviewTimeline = SlayerPetPreviewTimeline(previewStartedAt)
-            if (previewScenario == "fishing") fishingPreviewTimeline = FishingPreviewTimeline(previewStartedAt)
-        }
         if (!enabled && preview) clearNoticeIcon()
-        preview = enabled
+        previews.setEnabled(enabled, now())
         diagnostics.record("preview", if (enabled) "on" else "off")
     }
     fun setPreviewScenario(scenario: String) {
-        require(scenario in setOf("objective", "skill", "skyblock", "unknown", "levelup", "rare", "sequence", "idle", "event", "petlevelup", "skilllevelup", "garden", "dungeon", "election", "ranks", "mining", "nucleus", "confirmations", "slayerpets", "fishing"))
-        previewScenario = scenario
-        previewStartedAt = now()
-        previewTimeline = if (scenario == "sequence") PreviewTimeline(previewStartedAt) else null
-        eventPreviewTimeline = if (scenario == "event") EventPreviewTimeline(previewStartedAt) else null
-        levelUpPreviewTimeline = if (scenario in setOf("petlevelup", "skilllevelup")) LevelUpPreviewTimeline(previewStartedAt, scenario == "petlevelup") else null
-        contextPreviewTimeline = if (scenario in setOf("garden", "dungeon")) ContextPreviewTimeline(previewStartedAt, scenario == "dungeon") else null
-        electionPreviewTimeline = if (scenario == "election") ElectionPreviewTimeline(previewStartedAt) else null
-        miningPreviewTimeline = if (scenario == "mining") MiningPreviewTimeline(previewStartedAt) else null
-        nucleusPreviewTimeline = if (scenario == "nucleus") NucleusPreviewTimeline(previewStartedAt) else null
-        confirmationPreviewTimeline = if (scenario == "confirmations") ConfirmationPreviewTimeline(previewStartedAt) else null
-        slayerPetPreviewTimeline = if (scenario == "slayerpets") SlayerPetPreviewTimeline(previewStartedAt) else null
-        fishingPreviewTimeline = if (scenario == "fishing") FishingPreviewTimeline(previewStartedAt) else null
+        previews.select(scenario, now())
         clearNoticeIcon()
-        setPreview(true)
+        diagnostics.record("preview", "on")
     }
     fun openSettings() { val client = Minecraft.getInstance(); client.execute { client.gui.setScreen(SkyglintSettingsScreen(client.gui.screen())) } }
     fun hudSnapshot(): HudSnapshot {
         if (preview) {
-            val demo = if (previewScenario == "ranks") rankPreviewSnapshot() else
-                fishingPreviewTimeline?.snapshot(now()) ?: slayerPetPreviewTimeline?.snapshot(now()) ?: confirmationPreviewTimeline?.snapshot(now()) ?: nucleusPreviewTimeline?.snapshot(now()) ?: miningPreviewTimeline?.snapshot(now()) ?: electionPreviewTimeline?.snapshot(now()) ?: contextPreviewTimeline?.snapshot(now()) ?: levelUpPreviewTimeline?.snapshot(now()) ?: eventPreviewTimeline?.snapshot(now()) ?: previewTimeline?.snapshot(now()) ?: demoSnapshot()
+            val original = previews.snapshot(now())
+            val demo = original.copy(activeNotice=original.activeNotice?.takeIf { core.noticePreferences.allows(
+                NoticeRequest(it.id,it.title,target=it.target)) },
+                notice=original.notice?.takeIf { config.current.showSkyBlockLevelUps })
             val client = Minecraft.getInstance()
             updateNoticeIcon(client, demo.activeNotice, demo.pet)
             if (client.level != null) { petIcon = PetIconCache.resolve(demo.pet); skyBlockIcon = HeadIconResolver.skyBlockHead(client) }
-            if (previewScenario == "fishing" && client.level != null) {
+            if (previews.scenario == PreviewScenario.FISHING && client.level != null) {
                 // Explicit preview-only stand-in. Live play always copies the actual server preview ItemStack.
                 fishingBaitIcon = ItemStack(net.minecraft.world.item.Items.SALMON)
             }
@@ -538,6 +452,7 @@ object SkyglintClient : ClientModInitializer {
                     "rarity" to event.observation.rarity, "amount" to event.observation.amount,
                     "fishingCategory" to event.observation.fishingCategory?.name,
                     "catchQuality" to event.observation.catchQuality?.name, "trophyGrade" to event.observation.trophyGrade?.name,
+                    "delivery" to event.observation.delivery.name,
                     "shown" to event.decision?.shown,
                     "reason" to event.decision?.reason, "queued" to event.decision?.queued)
             }
@@ -659,49 +574,33 @@ object SkyglintClient : ClientModInitializer {
         val hint = notice?.item
         val key = notice?.let { "${it.id}:${it.observedAt}" }
         if (hint != lastNoticeHint || key != lastNoticeKey) {
-            noticeIcon = null; noticeRarity = null
+            noticeIcon = null; noticeRarity = null; noticeLootIcons = emptyMap()
             lastNoticeHint = hint; lastNoticeKey = key; lastNoticeResolveAt = 0
         }
         val time = now()
         // Inventory packets may arrive after chat. Revalidate throughout this short notice,
         // including a formerly unique match becoming ambiguous when the new item arrives.
-        if (hint != null && time - lastNoticeResolveAt >= 250) {
+        if (hint != null && notice?.loot.isNullOrEmpty() && time - lastNoticeResolveAt >= 250) {
             lastNoticeResolveAt = time
             val resolved = NoticeItemResolver.resolveDetails(client, hint)
             val petHead = if (notice?.id?.startsWith("skyglint.pet_level_up:") == true && activePet?.name == hint.itemName)
                 PetIconCache.resolve(activePet) else null
             noticeIcon = resolved?.icon ?: petHead; noticeRarity = resolved?.rarity
         }
+        if (notice?.loot?.isNotEmpty() == true && time - lastNoticeResolveAt >= 250) {
+            lastNoticeResolveAt = time
+            noticeLootIcons = notice.loot.mapIndexedNotNull { index, reward ->
+                NoticeItemResolver.resolveDetails(client, ItemVisualHint(reward.itemName, reward.vanillaItemId))
+                    ?.icon?.let { "@loot:$index" to it }
+            }.toMap()
+        }
     }
     private fun clearNoticeIcon() {
-        noticeIcon = null; noticeRarity = null; lastNoticeHint = null; lastNoticeKey = null; lastNoticeResolveAt = 0
+        noticeIcon = null; noticeRarity = null; noticeLootIcons = emptyMap(); lastNoticeHint = null; lastNoticeKey = null; lastNoticeResolveAt = 0
     }
-    private fun demoSnapshot(): HudSnapshot = HudSnapshot(true, "SYNTHETIC_PREVIEW", if (previewScenario in setOf("idle", "event")) emptyList() else listOf(
-        if (previewScenario == "objective") BossBarState(UUID(0, 1), "Craft a workbench", 1f, "YELLOW")
-        else BossBarState(UUID(0, 1), "Magma Boss", .64f, "RED")),
-        when (previewScenario) {
-            "objective", "skyblock", "levelup", "idle", "event" -> ProgressionView.SkyBlock(287, ProgressSnapshot(88.0, 100.0, .88))
-            "unknown" -> ProgressionView.SkyBlock(500, null)
-            else -> ProgressionView.SkillView(Skill.MINING, null, ProgressSnapshot(null, null, previewFraction(.4839)), 1.1)
-        },
-        PetSnapshot("Seal", 70, ProgressSnapshot(null, null, previewFraction(.72))), null,
-        activeNotice = when (previewScenario) {
-            "levelup" -> TransientNotice("preview.level", "SkyBlock level up!", "Level 288", 100, previewStartedAt, previewStartedAt + 4000)
-            "rare" -> TransientNotice("preview.rare", "Rare drop!", "Enchanted Book", 50, previewStartedAt, previewStartedAt + 4000,
-                ItemVisualHint("Enchanted Book", "minecraft:enchanted_book"), magicFind = 123, rarity = "EPIC")
-            else -> null
-        }, location = if (previewScenario in setOf("idle", "event")) "Your Island" else null,
-        nextEvent = if (previewScenario == "event") ScheduledEvent("Spooky Festival", previewStartedAt + 7_200_000,
-            previewStartedAt, false, "synthetic_preview", previewStartedAt + 10_000_000) else null)
-    private fun rankPreviewSnapshot() = HudSnapshot(true, "SYNTHETIC_RANKS", emptyList(), null, null, null,
-        widgets = listOf("D" to 0, "C" to 100, "B" to 160, "A" to 230, "S" to 270, "S+" to 300).map { (rank, score) ->
-            ModuleWidget("preview.rank.$rank", rank, presentation = WidgetPresentation(WidgetRole.COUNTERS,
-                metrics = listOf(WidgetMetric("score", "Score", "$score · $rank", priority = 100))))
-        })
-    private fun previewFraction(start: Double): Double = if (previewScenario != "skill") start else
-        start + ((now() - previewStartedAt).coerceAtLeast(0) % 7_000 / 700).toInt().coerceAtMost(2) * .01
-    private fun feedback(message: String, tone: SkyglintChat.Tone = SkyglintChat.Tone.INFO) = SkyglintChat.send(message, tone)
-    private fun command(action: () -> Unit): Int = try { action(); 1 } catch (e: Exception) {
+    internal fun statusSummary(): String = "HUD=${config.current.enabled}; SkyBlock=${session != null}; logs=${config.current.loggingEnabled}; raw=${config.current.captureRawText}; chat=${config.current.captureChat}; drops=${config.current.rewardMode}; dropped=${diagnostics.droppedRecords}; ${diagnostics.lastFailure?.message ?: configFailure ?: "config OK"}"
+    internal fun feedback(message: String, tone: SkyglintChat.Tone = SkyglintChat.Tone.INFO) = SkyglintChat.send(message, tone)
+    internal fun command(action: () -> Unit): Int = try { action(); 1 } catch (e: Exception) {
         logger.warn("Skyglint command failed", e); feedback("Could not save: ${e.message}", SkyglintChat.Tone.ERROR); 0
     }
 }

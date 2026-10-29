@@ -83,12 +83,50 @@ class FishingPresentationTest {
         now = 2_000
         core.ingest(bait("2,048"), now)
         val healthy = composer.compose(core.snapshot(now), now).single { it.id == helper.id }
-        assertEquals(HudElementKind.ICON, healthy.kind)
+        assertEquals(HudElementKind.COUNTER, healthy.kind)
         assertNull(healthy.progress)
-        assertNull(healthy.value)
+        assertEquals("2048", healthy.value)
+        assertTrue(healthy.liveValue)
         assertTrue(healthy.subtitle!!.contains("2048 remaining"))
         core.ingest(bait(null), ++now)
         assertTrue(composer.compose(core.snapshot(now), now).none { it.id == helper.id })
+    }
+
+    @Test fun `healthy large bait counts remain exact during introduction and settled live updates`() {
+        val core = core()
+        val composer = HudComposition()
+        core.ingest(bait("10,000"), now)
+        val intro = composer.compose(core.snapshot(now), now).single { it.id == "group:fishing:bait" }
+        assertEquals(HudElementKind.MAIN, intro.kind)
+        assertEquals("Fish Bait", intro.title)
+        assertEquals("10000", intro.value)
+        assertEquals("@fishing_bait", intro.icon)
+        assertTrue(intro.liveValue)
+        assertNull(intro.progress)
+
+        now = 1_000
+        core.ingest(bait("9,999"), now)
+        val introUpdate = composer.compose(core.snapshot(now), now).single { it.id == intro.id }
+        assertEquals(HudElementKind.MAIN, introUpdate.kind)
+        assertEquals("9999", introUpdate.value)
+        assertEquals(intro.visibleContentKey(0), introUpdate.visibleContentKey(0))
+        assertEquals("9999", intro.displayValue(introUpdate))
+
+        now = 2_000
+        core.ingest(bait("10,000"), now)
+        val settled = composer.compose(core.snapshot(now), now).single { it.id == intro.id }
+        assertEquals(HudElementKind.COUNTER, settled.kind)
+        assertEquals("10000", settled.value)
+        assertTrue(settled.liveValue)
+        assertNull(settled.progress)
+
+        now = 2_001
+        core.ingest(bait("9,999"), now)
+        val settledUpdate = composer.compose(core.snapshot(now), now).single { it.id == intro.id }
+        assertEquals(HudElementKind.COUNTER, settledUpdate.kind)
+        assertEquals("9999", settledUpdate.value)
+        assertEquals(settled.visibleContentKey(0), settledUpdate.visibleContentKey(0))
+        assertEquals("9999", settled.displayValue(settledUpdate))
     }
 
     @Test fun `rare catch preempts nothing permanently and bait returns with current underlying XP`() {
@@ -129,7 +167,7 @@ class FishingPresentationTest {
 
     @Test fun `selected bait and disabled sack share a compact strip with no warning caption`() {
         for ((count, expectedValue, expectedAccent) in listOf(
-            Triple("64", "", 0xFFA6D9AD.toInt()),
+            Triple("64", "64", 0xFFA6D9AD.toInt()),
             Triple("12", "12", 0xFFFFD479.toInt()),
             Triple("0", "0", 0xFFF28E8E.toInt()))) {
             val core = core()
@@ -149,5 +187,18 @@ class FishingPresentationTest {
             assertFalse(helper.subtitle!!.contains("Bait Sack: "))
             assertNull(core.snapshot(now).activeNotice)
         }
+    }
+
+    @Test fun `changing a healthy bait count in a sack strip keeps its content transition stable`() {
+        val core = core()
+        core.ingest(bait("256"), now)
+        core.onChat("Use Baits From Sacks are now disabled!", now)
+        val first = HudComposition().compose(core.snapshot(now), now).single { it.id == "group:fishing:bait" }
+        now = 1_000
+        core.ingest(bait("255"), now)
+        val second = HudComposition().compose(core.snapshot(now), now).single { it.id == first.id }
+        assertEquals("256", first.parts.first().text)
+        assertEquals("255", second.parts.first().text)
+        assertEquals(first.visibleContentKey(0), second.visibleContentKey(0))
     }
 }

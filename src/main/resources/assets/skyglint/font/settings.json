@@ -1,0 +1,6 @@
+{
+  "providers": [
+    { "type": "ttf", "file": "skyglint:inter-medium.ttf", "size": 32.0, "oversample": 3.0, "shift": [0.0, 0.0] },
+    { "type": "reference", "id": "minecraft:default" }
+  ]
+}

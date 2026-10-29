@@ -232,4 +232,49 @@ class GitHubUpdateServiceTest {
         assertFalse(Files.exists(f.mods.resolve("stage")))
         f.assertCurrentIntact()
     }
+
+    @Test fun `legacy manifests remain normal even when a release title claims critical importance`() {
+        val f = Fixture()
+        f.interceptor = { uri -> if (uri == GitHubUpdateService.LATEST)
+            UpdateHttpResponse(200, f.metadata.replaceFirst("{", "{\"name\":\"CRITICAL security update\",").toByteArray()) else null }
+        assertEquals(UpdateImportance.NORMAL, f.offered().importance)
+        assertEquals(2, f.requests.size)
+        f.assertCurrentIntact()
+    }
+
+    @Test fun `explicit manifest importance reaches the verified offer without downloading a jar`() {
+        for (importance in UpdateImportance.entries) {
+            val f = Fixture()
+            f.interceptor = { uri -> if (uri.path.endsWith("update-manifest.json"))
+                UpdateHttpResponse(200, (f.manifest.dropLast(1) + ",\"importance\":\"${importance.manifestValue}\"}").toByteArray()) else null }
+            assertEquals(importance, f.offered().importance)
+            assertEquals(2, f.requests.size)
+            assertFalse(Files.exists(f.mods.resolve("skyglint-0.2.1.jar")))
+            f.assertCurrentIntact()
+        }
+    }
+
+    @Test fun `invalid importance cannot become an offer and invalidates an earlier verified offer`() {
+        for (value in listOf("\"urgent\"", "\"CRITICAL\"", "\"critical \"", "null", "true", "1", "{}", "[]")) {
+            val f = Fixture()
+            val previousOffer = f.offered()
+            f.interceptor = { uri -> if (uri.path.endsWith("update-manifest.json"))
+                UpdateHttpResponse(200, (f.manifest.dropLast(1) + ",\"importance\":$value}").toByteArray()) else null }
+            assertEquals(UpdateCheck.Failed("invalid_importance"), f.service.check(), value)
+            assertEquals(UpdateDownload.Failed("release_was_not_verified"), f.service.download(previousOffer))
+            assertEquals(4, f.requests.size)
+            assertFalse(Files.exists(f.staging))
+            f.assertCurrentIntact()
+        }
+    }
+
+    @Test fun `changing importance on an otherwise verified offer cannot authorize download`() {
+        val f = Fixture()
+        val offer = f.offered()
+        assertEquals(UpdateDownload.Failed("release_was_not_verified"),
+            f.service.download(offer.copy(importance = UpdateImportance.CRITICAL)))
+        assertEquals(2, f.requests.size)
+        assertFalse(Files.exists(f.staging))
+        f.assertCurrentIntact()
+    }
 }

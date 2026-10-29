@@ -12,4 +12,13 @@ class ServerSignalCaptureTest {
         assertFalse(ServerSignalCapture.relevant("[MVP+] Player: RARE DROP! Summoning Eye"))
         assertFalse(ServerSignalCapture.relevant("From Player: hello"))
     }
+
+    @Test fun `public Defense result fields remain diagnosable without broad player chat capture`() {
+        for (line in listOf("WAVE 3 - YOU WON!", "Snowball Accuracy: N/A", "White Gift x34",
+            "Collect your Gifts at the Gift piles!", "Snowballs Hit: 0\nSnowballs Thrown: 0"))
+            assertTrue(ServerSignalCapture.relevant(line), line)
+        assertFalse(ServerSignalCapture.relevant("From Player: White Gift x34"))
+        assertFalse(ServerSignalCapture.relevant("[MVP+] Player: WAVE 3 - YOU WON!"))
+        assertFalse(ServerSignalCapture.relevant("x".repeat(12_001)))
+    }
 }
