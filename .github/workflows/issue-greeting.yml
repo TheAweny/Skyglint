@@ -1,0 +1,22 @@
+name: Issue greeting
+on:
+  issues:
+    types: [opened]
+permissions:
+  issues: write
+jobs:
+  greet:
+    if: github.event.issue.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post greeting comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body-file - <<'EOF'
+          Thanks for the report! The issue will be triaged automatically within a few hours (checks run at 09:00–21:00 MSK). Please make sure it includes: mod version, Minecraft version, Fabric Loader/API versions, other mods, logs or crash report, and steps to reproduce.
+
+          Спасибо за issue! Его разберут автоматически в течение нескольких часов (проверки с 9:00 до 21:00 МСК). Проверь, что указаны: версия мода, версия Minecraft, Fabric Loader и API, другие моды, лог или crash report, шаги воспроизведения.
+          EOF
